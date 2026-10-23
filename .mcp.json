@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "schoolos": {
+      "command": "/Users/modewebhostdailymedia/SchoolOS/.venv/bin/python",
+      "args": ["-m", "schoolos.mcp_server.server"]
+    }
+  }
+}

@@ -62,7 +62,13 @@ columns each table expects).
 
 ### Option A — MCP server (Claude Desktop / Claude Code)
 
-Add to your MCP client config (e.g. Claude Desktop's `claude_desktop_config.json`):
+**Claude Code:** a project-scoped [`.mcp.json`](.mcp.json) is already checked in,
+pointing at this repo's `.venv`. Open a new Claude Code session in this
+project (or restart your current one) and approve the `schoolos` MCP server
+when prompted — no API key needed, it uses your existing Claude session.
+
+**Claude Desktop** (the standalone chat app) or any other MCP client: add the
+same server to its config manually, e.g. in `claude_desktop_config.json`:
 
 ```json
 {
