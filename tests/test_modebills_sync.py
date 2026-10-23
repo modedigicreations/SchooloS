@@ -105,6 +105,24 @@ def test_sync_organization_loads_and_is_queryable():
     conn.close()
 
 
+def test_fetch_all_sends_slug_param_when_no_id_given():
+    captured = []
+    with patch.object(sync, "_fetch", side_effect=lambda base, secret, path, params: captured.append((path, params)) or {
+        "classes": [], "subjects": [], "teachers": [], "students": [], "examResults": [], "attendance": [],
+    }):
+        sync.fetch_all("http://x", "secret", organization_slug="the-word-of-promise-high-school")
+    assert all(p.get("organizationSlug") == "the-word-of-promise-high-school" for _, p in captured)
+    assert all("organizationId" not in p for _, p in captured)
+
+
+def test_fetch_all_requires_id_or_slug():
+    try:
+        sync.fetch_all("http://x", "secret")
+        raise AssertionError("expected SyncError")
+    except sync.SyncError as exc:
+        assert "organization_id or organization_slug" in str(exc)
+
+
 def test_sync_organization_requires_secret():
     try:
         sync.sync_organization("org1", secret=None)

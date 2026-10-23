@@ -3,7 +3,11 @@ SchoolOS database, via the read-only /api/enterprise/schoolos/* endpoints.
 
 Configuration (environment variables):
     MODEBILLS_BASE_URL              default: https://app.modeschools.com
-    MODEBILLS_ORGANIZATION_ID       required — the school's organization id
+    MODEBILLS_ORGANIZATION_ID       the school's organization id (uuid) — set
+                                     this OR MODEBILLS_ORGANIZATION_SLUG
+    MODEBILLS_ORGANIZATION_SLUG     the school's slug, e.g. as it appears in
+                                     its own Modebills URL
+                                     (app.modeschools.com/<slug>)
     MODECBT_INTER_SERVICE_SECRET    required — shared secret (see Modebills'
                                      src/server/enterprise-auth.helpers.ts)
 
@@ -80,14 +84,19 @@ def _fetch(base_url: str, secret: str, path: str, params: dict) -> dict:
 def fetch_all(
     base_url: str,
     secret: str,
-    organization_id: str,
+    organization_id: str | None = None,
+    organization_slug: str | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
 ) -> dict[str, list[dict]]:
-    """Fetch every endpoint's raw JSON for one organization. Kept separate from
+    """Fetch every endpoint's raw JSON for one organization, identified by its
+    raw id or its human-readable slug (e.g. 'the-word-of-promise-high-school',
+    as it appears in the school's own Modebills URL). Kept separate from
     transform/load so the API shape and the local schema can each change
     without touching the other."""
-    params = {"organizationId": organization_id}
+    if not organization_id and not organization_slug:
+        raise SyncError("either organization_id or organization_slug is required")
+    params = {"organizationId": organization_id} if organization_id else {"organizationSlug": organization_slug}
     return {
         "classes": _fetch(base_url, secret, "/api/enterprise/schoolos/classes", params)["classes"],
         "subjects": _fetch(base_url, secret, "/api/enterprise/schoolos/subjects", params)["subjects"],
@@ -164,7 +173,8 @@ def _upsert(conn: sqlite3.Connection, table: str, columns: list[str], rows: list
 
 
 def sync_organization(
-    organization_id: str,
+    organization_id: str | None = None,
+    organization_slug: str | None = None,
     base_url: str | None = None,
     secret: str | None = None,
     from_date: str | None = None,
@@ -176,7 +186,7 @@ def sync_organization(
     if not secret:
         raise SyncError("MODECBT_INTER_SERVICE_SECRET is not set")
 
-    raw = fetch_all(base_url, secret, organization_id, from_date, to_date)
+    raw = fetch_all(base_url, secret, organization_id, organization_slug, from_date, to_date)
     exam_rows, exam_result_rows = transform_exam_results(raw["exam_results"])
 
     owns_conn = conn is None
@@ -212,12 +222,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     org_id = os.environ.get("MODEBILLS_ORGANIZATION_ID")
-    if not org_id:
-        print("MODEBILLS_ORGANIZATION_ID is not set", file=sys.stderr)
+    org_slug = os.environ.get("MODEBILLS_ORGANIZATION_SLUG")
+    if not org_id and not org_slug:
+        print("set MODEBILLS_ORGANIZATION_ID or MODEBILLS_ORGANIZATION_SLUG", file=sys.stderr)
         sys.exit(1)
 
     try:
-        result = sync_organization(org_id, from_date=args.from_date, to_date=args.to_date)
+        result = sync_organization(
+            organization_id=org_id, organization_slug=org_slug,
+            from_date=args.from_date, to_date=args.to_date,
+        )
     except SyncError as exc:
         print(f"sync failed: {exc}", file=sys.stderr)
         sys.exit(1)
