@@ -95,10 +95,16 @@ TOOLS: list[Tool] = [
         name="rank_teacher_improvement",
         description=(
             "Rank teachers by how much their classes' average scores improved from the first "
-            "term on record to the most recent one, across every class and subject they teach."
+            "term on record to the most recent one, across every class and subject they teach, "
+            "most-improved first. Pass top_n (e.g. 3) to return only the top N instead of everyone."
         ),
-        input_schema=_no_args_schema(),
-        handler=lambda conn, **_: q.rank_teacher_improvement(conn),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "top_n": {"type": "integer", "description": "Return only the top N most-improved teachers. Omit for all."},
+            },
+        },
+        handler=lambda conn, **kw: q.rank_teacher_improvement(conn, **kw),
     ),
     Tool(
         name="get_attendance_summary",

@@ -13,11 +13,21 @@ class NotFoundError(Exception):
     pass
 
 
+_SINGULAR = {"classes": "class", "subjects": "subject", "terms": "term"}
+
+
 def _resolve_id(conn: sqlite3.Connection, table: str, name: str) -> int:
     row = conn.execute(f"SELECT id FROM {table} WHERE name = ? COLLATE NOCASE", (name,)).fetchone()
     if row is None:
-        raise NotFoundError(f"no {table[:-1]} named '{name}'")
+        raise NotFoundError(f"no {_SINGULAR.get(table, table)} named '{name}'")
     return row["id"]
+
+
+def _check_exists(conn: sqlite3.Connection, table: str, name: str | None) -> None:
+    """Raise NotFoundError on an unmatched name instead of letting a filtered query
+    silently return zero rows for a typo'd or misremembered class/subject/term."""
+    if name is not None:
+        _resolve_id(conn, table, name)
 
 
 def list_classes(conn: sqlite3.Connection) -> list[dict]:
@@ -40,6 +50,10 @@ def underperforming_students(
     threshold_percent: float = 50.0,
 ) -> list[dict]:
     """Students whose average percent score (over matching assessments) is at or below threshold_percent."""
+    _check_exists(conn, "classes", class_name)
+    _check_exists(conn, "subjects", subject)
+    _check_exists(conn, "terms", term)
+
     where = []
     params: list = []
     if class_name:
@@ -127,9 +141,10 @@ def compare_term_performance(conn: sqlite3.Connection, class_name: str, subject:
     return rows
 
 
-def rank_teacher_improvement(conn: sqlite3.Connection) -> list[dict]:
+def rank_teacher_improvement(conn: sqlite3.Connection, top_n: int | None = None) -> list[dict]:
     """Rank teachers by how much their classes' average percent score improved from the
-    first term on record to the last, across every class+subject they teach."""
+    first term on record to the last, across every class+subject they teach, most-improved
+    first. Pass top_n to return only the top N instead of every teacher."""
     sql = """
         SELECT t.id AS teacher_id, t.name AS teacher_name,
                cl.name AS class_name, su.name AS subject_name,
@@ -188,7 +203,7 @@ def rank_teacher_improvement(conn: sqlite3.Connection) -> list[dict]:
             "assignments": bucket["assignments"],
         })
     ranked.sort(key=lambda x: x["average_improvement_percentage_points"], reverse=True)
-    return ranked
+    return ranked[:top_n] if top_n is not None else ranked
 
 
 def attendance_summary(
@@ -199,6 +214,9 @@ def attendance_summary(
 ) -> dict:
     """Overall attendance rate plus the list of students at or below chronic_threshold_percent
     present-rate (candidates for attendance intervention)."""
+    _check_exists(conn, "classes", class_name)
+    _check_exists(conn, "terms", term)
+
     where = []
     params: list = []
     if class_name:
@@ -255,6 +273,9 @@ def intervention_candidates(
 ) -> list[dict]:
     """Bottom `bottom_percent` of students (by overall average percent score, optionally scoped
     to one class/subject) with their score and attendance data, for building intervention plans."""
+    _check_exists(conn, "classes", class_name)
+    _check_exists(conn, "subjects", subject)
+
     where = []
     params: list = []
     if class_name:
