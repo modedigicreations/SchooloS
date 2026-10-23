@@ -124,5 +124,31 @@ def get_term_report_data(class_name: str, term: str) -> dict:
     return _query(q.term_report_data, class_name, term)
 
 
+@mcp.tool()
+def find_student(name: str) -> list[dict]:
+    """Find students by a partial, case-insensitive name match. Returns every match
+    so an ambiguous name can be disambiguated by student_id before calling
+    get_student_profile.
+    """
+    return _query(q.find_student, name)
+
+
+@mcp.tool()
+def get_student_profile(student_id: int) -> dict:
+    """Get one student's full profile: overall and per-subject average scores,
+    attendance rate, and class. Look up the student_id with find_student first.
+    """
+    return _query(q.get_student_profile, student_id)
+
+
+@mcp.tool()
+def compare_classes_on_subject(subject: str, term: str | None = None) -> list[dict]:
+    """Compare every class's average percent score on one subject, strongest first
+    (e.g. "which class is best at Mathematics school-wide"). Optionally scope to
+    one term; otherwise averages across all terms on record.
+    """
+    return _query(q.compare_classes_on_subject, subject, term)
+
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")

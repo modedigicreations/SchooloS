@@ -116,6 +116,8 @@ useful for a demo audience that wants to see the grounding, not just trust it.
 - "Which teachers have the largest improvement in student outcomes?"
 - "Draft an end-of-term report for Primary 6"
 - "Generate an intervention plan for the bottom 10% of Primary 3"
+- "Tell me about Kelechi Chukwu's overall performance"
+- "Which class is strongest in Mathematics school-wide?"
 
 ## Roadmap / what's deliberately out of scope (for now)
 

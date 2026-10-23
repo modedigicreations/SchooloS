@@ -21,7 +21,11 @@
   #chat { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; max-width: 760px; width: 100%; margin: 0 auto; }
   .msg { max-width: 85%; padding: 10px 14px; border-radius: 12px; line-height: 1.45; font-size: 14.5px; white-space: pre-wrap; }
   .msg.user { align-self: flex-end; background: var(--user-bg); color: var(--user-fg); }
-  .msg.assistant { align-self: flex-start; background: var(--assist-bg); border: 1px solid var(--border); }
+  .msg.assistant { align-self: flex-start; background: var(--assist-bg); border: 1px solid var(--border); white-space: normal; }
+  .msg.assistant p { margin: 0 0 8px; }
+  .msg.assistant p:last-child { margin-bottom: 0; }
+  .msg.assistant ul { margin: 0 0 8px; padding-left: 20px; }
+  .msg.assistant ul:last-child { margin-bottom: 0; }
   .msg.error { align-self: flex-start; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
   details.tools { align-self: flex-start; max-width: 85%; font-size: 12.5px; color: var(--muted); }
   details.tools summary { cursor: pointer; }
@@ -58,12 +62,56 @@ const EXAMPLES = [
   "Which teachers have the largest improvement in student outcomes?",
   "Draft an end-of-term report for Primary 6",
   "Generate an intervention plan for the bottom 10% of Primary 3",
+  "Which class is strongest in Mathematics school-wide?",
 ];
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Minimal, dependency-free markdown: bold, italic, bullet lists, paragraphs.
+// Assistant replies are plain prose with occasional **bold**/lists, not full
+// markdown documents, so this subset is deliberately small.
+function renderMarkdownLite(text) {
+  let html = escapeHtml(text);
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '<em>$1</em>');
+
+  const lines = html.split('\n');
+  const out = [];
+  let inList = false;
+  for (const line of lines) {
+    const m = line.match(/^[-*]\s+(.*)/);
+    if (m) {
+      if (!inList) { out.push('<ul>'); inList = true; }
+      out.push('<li>' + m[1] + '</li>');
+    } else {
+      if (inList) { out.push('</ul>'); inList = false; }
+      out.push(line);
+    }
+  }
+  if (inList) out.push('</ul>');
+  html = out.join('\n');
+
+  return html.split(/\n{2,}/).map(block => {
+    const trimmed = block.trim();
+    if (trimmed.startsWith('<ul>')) return trimmed;
+    return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
+  }).join('');
+}
+
+function setContent(div, role, text) {
+  if (role === 'assistant') {
+    div.innerHTML = renderMarkdownLite(text);
+  } else {
+    div.textContent = text;
+  }
+}
 
 function addMessage(role, text) {
   const div = document.createElement('div');
   div.className = 'msg ' + role;
-  div.textContent = text;
+  setContent(div, role, text);
   chatEl.appendChild(div);
   chatEl.scrollTop = chatEl.scrollHeight;
   return div;
@@ -112,15 +160,15 @@ async function send(message) {
     const data = await res.json();
     if (!res.ok) {
       pending.className = 'msg error';
-      pending.textContent = data.error || 'Something went wrong.';
+      setContent(pending, 'error', data.error || 'Something went wrong.');
     } else {
-      pending.textContent = data.reply;
+      setContent(pending, 'assistant', data.reply);
       history.push({ role: 'assistant', text: data.reply });
       addToolDetails(data.tool_calls);
     }
   } catch (err) {
     pending.className = 'msg error';
-    pending.textContent = 'Network error: ' + err;
+    setContent(pending, 'error', 'Network error: ' + err);
   } finally {
     input.disabled = false;
     input.focus();

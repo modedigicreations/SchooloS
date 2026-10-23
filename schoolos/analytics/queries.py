@@ -371,3 +371,91 @@ def term_report_data(conn: sqlite3.Connection, class_name: str, term: str) -> di
         "bottom_students": per_student[-3:],
         "attendance": attendance,
     }
+
+
+def find_student(conn: sqlite3.Connection, name: str) -> list[dict]:
+    """Find students by a (partial, case-insensitive) name match. Returns every
+    match so an ambiguous name (e.g. two "Chinedu"s) can be disambiguated by
+    student_id before calling get_student_profile."""
+    rows = conn.execute("""
+        SELECT st.id AS student_id, st.name AS student_name, cl.name AS class_name,
+               st.admission_number
+        FROM students st
+        JOIN classes cl ON cl.id = st.class_id
+        WHERE st.name LIKE ? COLLATE NOCASE
+        ORDER BY st.name
+    """, (f"%{name}%",)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_student_profile(conn: sqlite3.Connection, student_id: int) -> dict:
+    """Full profile for one student: overall and per-subject averages, attendance
+    rate, and class. Look up student_id with find_student first."""
+    student = conn.execute("""
+        SELECT st.id, st.name, cl.name AS class_name, st.gender, st.admission_number
+        FROM students st JOIN classes cl ON cl.id = st.class_id
+        WHERE st.id = ?
+    """, (student_id,)).fetchone()
+    if student is None:
+        raise NotFoundError(f"no student with id {student_id} — use find_student to look one up")
+
+    overall = conn.execute("""
+        SELECT AVG(100.0 * r.score / a.max_score) AS average_percent
+        FROM results r JOIN assessments a ON a.id = r.assessment_id
+        WHERE r.student_id = ?
+    """, (student_id,)).fetchone()
+
+    by_subject = conn.execute("""
+        SELECT su.name AS subject, AVG(100.0 * r.score / a.max_score) AS average_percent
+        FROM results r
+        JOIN assessments a ON a.id = r.assessment_id
+        JOIN subjects su ON su.id = a.subject_id
+        WHERE r.student_id = ?
+        GROUP BY su.id ORDER BY average_percent DESC
+    """, (student_id,)).fetchall()
+
+    att = conn.execute("""
+        SELECT 100.0 * SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) / COUNT(*) AS present_rate,
+               COUNT(*) AS days_recorded
+        FROM attendance WHERE student_id = ?
+    """, (student_id,)).fetchone()
+
+    return {
+        "student_id": student["id"],
+        "student_name": student["name"],
+        "class_name": student["class_name"],
+        "gender": student["gender"],
+        "admission_number": student["admission_number"],
+        "overall_average_percent": round(overall["average_percent"], 1) if overall["average_percent"] is not None else None,
+        "by_subject": [{"subject": r["subject"], "average_percent": round(r["average_percent"], 1)} for r in by_subject],
+        "attendance_present_rate_percent": round(att["present_rate"], 1) if att["present_rate"] is not None else None,
+        "attendance_days_recorded": att["days_recorded"],
+    }
+
+
+def compare_classes_on_subject(conn: sqlite3.Connection, subject: str, term: str | None = None) -> list[dict]:
+    """Compare every class's average percent score on one subject, strongest first.
+    Optionally scope to one term; otherwise averages across all terms on record."""
+    subject_id = _resolve_id(conn, "subjects", subject)
+    where = ["a.subject_id = ?"]
+    params: list = [subject_id]
+    if term:
+        term_id = _resolve_id(conn, "terms", term)
+        where.append("a.term_id = ?")
+        params.append(term_id)
+
+    sql = f"""
+        SELECT cl.name AS class_name,
+               AVG(100.0 * r.score / a.max_score) AS average_percent,
+               COUNT(DISTINCT r.student_id) AS students_counted
+        FROM results r
+        JOIN assessments a ON a.id = r.assessment_id
+        JOIN classes cl ON cl.id = a.class_id
+        WHERE {' AND '.join(where)}
+        GROUP BY cl.id
+        ORDER BY average_percent DESC
+    """
+    rows = [dict(r) for r in conn.execute(sql, params)]
+    for r in rows:
+        r["average_percent"] = round(r["average_percent"], 1)
+    return rows

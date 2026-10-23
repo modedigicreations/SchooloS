@@ -158,6 +158,50 @@ TOOLS: list[Tool] = [
         },
         handler=lambda conn, **kw: q.term_report_data(conn, **kw),
     ),
+    Tool(
+        name="find_student",
+        description=(
+            "Find students by a partial, case-insensitive name match. Returns every match "
+            "so an ambiguous name can be disambiguated by student_id before calling "
+            "get_student_profile."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        },
+        handler=lambda conn, **kw: q.find_student(conn, **kw),
+    ),
+    Tool(
+        name="get_student_profile",
+        description=(
+            "Get one student's full profile: overall and per-subject average scores, "
+            "attendance rate, and class. Look up the student_id with find_student first."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {"student_id": {"type": "integer"}},
+            "required": ["student_id"],
+        },
+        handler=lambda conn, **kw: q.get_student_profile(conn, **kw),
+    ),
+    Tool(
+        name="compare_classes_on_subject",
+        description=(
+            "Compare every class's average percent score on one subject, strongest first "
+            "(e.g. 'which class is best at Mathematics school-wide'). Optionally scope to "
+            "one term; otherwise averages across all terms on record."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "subject": {"type": "string"},
+                "term": {"type": "string"},
+            },
+            "required": ["subject"],
+        },
+        handler=lambda conn, **kw: q.compare_classes_on_subject(conn, **kw),
+    ),
 ]
 
 TOOLS_BY_NAME = {t.name: t for t in TOOLS}
