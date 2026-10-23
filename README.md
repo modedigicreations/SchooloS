@@ -11,14 +11,22 @@ results, attendance, teachers) — never a guess.
 ## How it works
 
 ```
-CSV exports  →  normalized SQLite DB  →  analytics queries (ground truth)  →  tools
-                                                                                 │
-                                                        ┌────────────────────────┼────────────────────────┐
-                                                        │                                                  │
-                                            MCP server (stdio)                                   web chat (FastAPI)
-                                   plugs into Claude Desktop / Claude Code                  Anthropic tool-use loop + a
-                                        or any other MCP client                              single-page chat UI
+CSV exports  ─┐
+               ├─▶  normalized SQLite DB  ─▶  analytics queries (ground truth)  ─▶  tools
+Modebills API ─┘                                                                       │
+                                                        ┌──────────────────────────────┼──────────────────────────────┐
+                                                        │                                                              │
+                                            MCP server (stdio)                                               web chat (FastAPI)
+                                   plugs into Claude Desktop / Claude Code                              Anthropic tool-use loop + a
+                                        or any other MCP client                                          single-page chat UI
 ```
+
+Two ways data gets into the local database: CSV import (for a school with no
+other system), or syncing from [Modebills](https://app.modeschools.com) (MODE
+Digital's own school platform), which schools already use for exams and
+attendance — no manual export needed. Both paths load into the exact same
+schema, so the analytics layer and both interfaces don't care which one fed
+them.
 
 Every number the assistant states comes from a direct SQL query in
 [`schoolos/analytics/queries.py`](schoolos/analytics/queries.py) — the LLM's job is
@@ -32,11 +40,13 @@ schoolos/
 ├── data/generate_demo_data.py   synthetic demo school (CSV generator)
 ├── db/schema.sql, connection.py SQLite schema + connection helper
 ├── ingest/load_csv.py           CSV → SQLite loader
+├── ingest/modebills_sync.py     Modebills API → SQLite sync
 ├── analytics/queries.py         ground-truth query functions
 ├── analytics/tools.py           tool definitions (JSON schema + dispatch) shared by both interfaces
 ├── mcp_server/server.py         MCP server (stdio) — for Claude Desktop/Code
 └── webchat/                     FastAPI app + chat UI, using the Anthropic API directly
 data/demo/                       generated synthetic CSVs (tracked in git for easy demoing)
+tests/test_modebills_sync.py     sync transform/load tests (mocked Modebills responses)
 ```
 
 ## Setup
@@ -54,22 +64,39 @@ python -m schoolos.data.generate_demo_data   # writes data/demo/*.csv
 python -m schoolos.ingest.load_csv data/demo  # loads into data/schoolos.db
 ```
 
-To load a real school's own exports instead, point `load_csv` at a directory
-with the same CSV shape (see the files under `data/demo/` for the exact
-columns each table expects). The loader validates and coerces every row
-rather than aborting the whole import on the first bad cell — it loads what
-it can and returns a report of which rows it skipped and why (bad number,
-missing reference, etc.), so a human can go fix the source file. Students
-carry an `admission_number` as a durable identifier, since names alone
-aren't a safe match key across a real school's own messy, duplicate-prone
-records.
+To load a non-Modebills school's own exports instead, point `load_csv` at a
+directory with the same CSV shape (see the files under `data/demo/` for the
+exact columns each table expects). The loader validates and coerces every
+row rather than aborting the whole import on the first bad cell — it loads
+what it can and returns a report of which rows it skipped and why (bad
+number, missing reference, etc.), so a human can go fix the source file.
 
-Real exports will very likely NOT already be in this normalized shape —
-most schools keep one row per student with one column per subject/term
-("wide" format), not our normalized "long" tables. Turning a specific
-school's actual export into these CSVs (a per-school adapter) is the next
-real step once we have a sample export to design against — see the
-project's internal notes for what that needs.
+A school's own export will very likely NOT already be in this normalized
+shape — most schools keep one row per student with one column per
+subject/exam ("wide" format), not our normalized "long" tables. Turning a
+specific school's actual export into these CSVs (a per-school adapter) is
+still an open item — see [docs/real-data-ingest-notes.md](docs/real-data-ingest-notes.md).
+
+### Syncing from Modebills instead
+
+For a school already on [Modebills](https://app.modeschools.com), there's
+nothing to export — `modebills_sync` pulls directly from its
+`/api/enterprise/schoolos/*` endpoints:
+
+```bash
+export MODECBT_INTER_SERVICE_SECRET=...   # shared secret, matches Modebills' own env
+export MODEBILLS_ORGANIZATION_ID=...      # the school's organization id
+python -m schoolos.ingest.modebills_sync
+```
+
+Re-running it is a plain upsert (ids are the platform's own UUIDs, used
+directly — no id-translation layer), so it's safe to run on a schedule or
+on demand. Two real gaps to know about, since they shape what SchoolOS can
+honestly answer from this source (see
+[docs/real-data-ingest-notes.md](docs/real-data-ingest-notes.md) for the
+full detail): academic data only covers exams actually run through
+Modebills' CBT module, and a "teacher" in this data means a class's single
+class teacher — there's no per-subject teacher assignment.
 
 ## Running it
 
@@ -126,6 +153,8 @@ Kept out of this pass on purpose, to keep the MVP's scope controlled:
 - **Finance module** (fees, budgets, financial literacy tie-ins)
 - **Behaviour records module**
 - **MODE Quest integration** (gamified learning, longer-term "education intelligence platform" vision)
-- Real SIS/API integrations — the MVP assumes CSV/spreadsheet import, since that's
-  the realistic day-one data source for most schools
-- Multi-school / multi-tenant support, auth & roles, production deployment
+- A per-school CSV adapter for non-Modebills schools with their own "wide"-format exports
+- Multi-school / multi-tenant support (SchoolOS is still single-tenant: one local
+  database synced from exactly one Modebills organization, or one CSV source),
+  auth & roles, production deployment
+- Scheduled/automatic Modebills sync (today it's a manual or cron-it-yourself command)

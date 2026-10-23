@@ -1,71 +1,75 @@
 -- SchoolOS normalized schema. One school per database for the MVP.
+--
+-- IDs are TEXT, not INTEGER: when data is synced from a real school platform
+-- (e.g. Modebills), its own UUID ids are used directly as these ids, so a
+-- re-sync is a plain upsert with no id-translation layer. The CSV/demo-data
+-- path just generates its own string ids the same way.
+--
+-- Shaped to match what a real platform actually tracks (see
+-- docs/real-data-ingest-notes.md): there is no "term" concept — an exam is a
+-- standalone test tied to one class+subject, ordered by date, not grouped
+-- into CA1/CA2/Exam-per-term. A teacher is linked only to a class, as its
+-- single "class teacher" — there is no per-subject teacher assignment.
 
 CREATE TABLE IF NOT EXISTS teachers (
-    id INTEGER PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    subject_specialty TEXT
+    employee_number TEXT,
+    status TEXT
 );
 
 CREATE TABLE IF NOT EXISTS classes (
-    id INTEGER PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
-    form_teacher_id INTEGER REFERENCES teachers(id)
+    class_teacher_id TEXT REFERENCES teachers(id)
 );
 
 CREATE TABLE IF NOT EXISTS subjects (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS class_subject_teacher (
-    class_id INTEGER NOT NULL REFERENCES classes(id),
-    subject_id INTEGER NOT NULL REFERENCES subjects(id),
-    teacher_id INTEGER NOT NULL REFERENCES teachers(id),
-    PRIMARY KEY (class_id, subject_id)
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    code TEXT
 );
 
 CREATE TABLE IF NOT EXISTS students (
-    id INTEGER PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    class_id INTEGER NOT NULL REFERENCES classes(id),
+    class_id TEXT NOT NULL REFERENCES classes(id),
     gender TEXT,
+    status TEXT,
     -- A school's own admission/registration number. Names alone aren't a safe
-    -- join key for real data (duplicates, spelling drift across terms); this is
-    -- the durable identifier a real ingest should match students on instead.
+    -- join key for real data (duplicates, spelling drift); this is the
+    -- durable identifier a real ingest should match students on instead.
     admission_number TEXT UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS terms (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    sequence INTEGER NOT NULL
+CREATE TABLE IF NOT EXISTS exams (
+    id TEXT PRIMARY KEY,
+    class_id TEXT NOT NULL REFERENCES classes(id),
+    subject_id TEXT NOT NULL REFERENCES subjects(id),
+    title TEXT NOT NULL,
+    exam_date TEXT NOT NULL,
+    total_marks REAL NOT NULL,
+    status TEXT
 );
 
-CREATE TABLE IF NOT EXISTS assessments (
-    id INTEGER PRIMARY KEY,
-    class_id INTEGER NOT NULL REFERENCES classes(id),
-    subject_id INTEGER NOT NULL REFERENCES subjects(id),
-    term_id INTEGER NOT NULL REFERENCES terms(id),
-    name TEXT NOT NULL,
-    sequence INTEGER NOT NULL,
-    max_score REAL NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS results (
-    assessment_id INTEGER NOT NULL REFERENCES assessments(id),
-    student_id INTEGER NOT NULL REFERENCES students(id),
-    score REAL NOT NULL,
-    PRIMARY KEY (assessment_id, student_id)
+CREATE TABLE IF NOT EXISTS exam_results (
+    exam_id TEXT NOT NULL REFERENCES exams(id),
+    student_id TEXT NOT NULL REFERENCES students(id),
+    -- Nullable: a real exam can exist with nobody graded (or nobody attempted)
+    -- yet. A row with a null score means "no result recorded", not zero.
+    score REAL,
+    attempt_status TEXT,
+    PRIMARY KEY (exam_id, student_id)
 );
 
 CREATE TABLE IF NOT EXISTS attendance (
-    student_id INTEGER NOT NULL REFERENCES students(id),
+    student_id TEXT NOT NULL REFERENCES students(id),
+    class_id TEXT NOT NULL REFERENCES classes(id),
     date TEXT NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('present', 'absent', 'late')),
-    term_id INTEGER NOT NULL REFERENCES terms(id),
+    status TEXT NOT NULL CHECK (status IN ('present', 'absent', 'late', 'excused')),
     PRIMARY KEY (student_id, date)
 );
 
-CREATE INDEX IF NOT EXISTS idx_results_student ON results(student_id);
+CREATE INDEX IF NOT EXISTS idx_exam_results_student ON exam_results(student_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_student ON attendance(student_id);
-CREATE INDEX IF NOT EXISTS idx_assessments_class_subject_term ON assessments(class_id, subject_id, term_id);
+CREATE INDEX IF NOT EXISTS idx_exams_class_subject ON exams(class_id, subject_id);

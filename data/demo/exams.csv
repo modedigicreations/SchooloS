@@ -1,0 +1,217 @@
+id,class_id,subject_id,title,exam_date,total_marks,status
+exam-0001,class-1,subject-1,Mathematics Round 1 Test 1,2025-01-13,20.0,completed
+exam-0002,class-1,subject-1,Mathematics Round 1 Test 2,2025-01-27,20.0,completed
+exam-0003,class-1,subject-1,Mathematics Round 1 Test 3,2025-02-10,100.0,completed
+exam-0004,class-1,subject-1,Mathematics Round 2 Test 1,2025-05-12,20.0,completed
+exam-0005,class-1,subject-1,Mathematics Round 2 Test 2,2025-05-26,20.0,completed
+exam-0006,class-1,subject-1,Mathematics Round 2 Test 3,2025-06-09,100.0,completed
+exam-0007,class-1,subject-1,Mathematics Round 3 Test 1,2025-09-08,20.0,completed
+exam-0008,class-1,subject-1,Mathematics Round 3 Test 2,2025-09-22,20.0,completed
+exam-0009,class-1,subject-1,Mathematics Round 3 Test 3,2025-10-06,100.0,completed
+exam-0010,class-1,subject-2,English Language Round 1 Test 1,2025-01-13,20.0,completed
+exam-0011,class-1,subject-2,English Language Round 1 Test 2,2025-01-27,20.0,completed
+exam-0012,class-1,subject-2,English Language Round 1 Test 3,2025-02-10,100.0,completed
+exam-0013,class-1,subject-2,English Language Round 2 Test 1,2025-05-12,20.0,completed
+exam-0014,class-1,subject-2,English Language Round 2 Test 2,2025-05-26,20.0,completed
+exam-0015,class-1,subject-2,English Language Round 2 Test 3,2025-06-09,100.0,completed
+exam-0016,class-1,subject-2,English Language Round 3 Test 1,2025-09-08,20.0,completed
+exam-0017,class-1,subject-2,English Language Round 3 Test 2,2025-09-22,20.0,completed
+exam-0018,class-1,subject-2,English Language Round 3 Test 3,2025-10-06,100.0,completed
+exam-0019,class-1,subject-3,Basic Science Round 1 Test 1,2025-01-13,20.0,completed
+exam-0020,class-1,subject-3,Basic Science Round 1 Test 2,2025-01-27,20.0,completed
+exam-0021,class-1,subject-3,Basic Science Round 1 Test 3,2025-02-10,100.0,completed
+exam-0022,class-1,subject-3,Basic Science Round 2 Test 1,2025-05-12,20.0,completed
+exam-0023,class-1,subject-3,Basic Science Round 2 Test 2,2025-05-26,20.0,completed
+exam-0024,class-1,subject-3,Basic Science Round 2 Test 3,2025-06-09,100.0,completed
+exam-0025,class-1,subject-3,Basic Science Round 3 Test 1,2025-09-08,20.0,completed
+exam-0026,class-1,subject-3,Basic Science Round 3 Test 2,2025-09-22,20.0,completed
+exam-0027,class-1,subject-3,Basic Science Round 3 Test 3,2025-10-06,100.0,completed
+exam-0028,class-1,subject-4,Social Studies Round 1 Test 1,2025-01-13,20.0,completed
+exam-0029,class-1,subject-4,Social Studies Round 1 Test 2,2025-01-27,20.0,completed
+exam-0030,class-1,subject-4,Social Studies Round 1 Test 3,2025-02-10,100.0,completed
+exam-0031,class-1,subject-4,Social Studies Round 2 Test 1,2025-05-12,20.0,completed
+exam-0032,class-1,subject-4,Social Studies Round 2 Test 2,2025-05-26,20.0,completed
+exam-0033,class-1,subject-4,Social Studies Round 2 Test 3,2025-06-09,100.0,completed
+exam-0034,class-1,subject-4,Social Studies Round 3 Test 1,2025-09-08,20.0,completed
+exam-0035,class-1,subject-4,Social Studies Round 3 Test 2,2025-09-22,20.0,completed
+exam-0036,class-1,subject-4,Social Studies Round 3 Test 3,2025-10-06,100.0,completed
+exam-0037,class-2,subject-1,Mathematics Round 1 Test 1,2025-01-13,20.0,completed
+exam-0038,class-2,subject-1,Mathematics Round 1 Test 2,2025-01-27,20.0,completed
+exam-0039,class-2,subject-1,Mathematics Round 1 Test 3,2025-02-10,100.0,completed
+exam-0040,class-2,subject-1,Mathematics Round 2 Test 1,2025-05-12,20.0,completed
+exam-0041,class-2,subject-1,Mathematics Round 2 Test 2,2025-05-26,20.0,completed
+exam-0042,class-2,subject-1,Mathematics Round 2 Test 3,2025-06-09,100.0,completed
+exam-0043,class-2,subject-1,Mathematics Round 3 Test 1,2025-09-08,20.0,completed
+exam-0044,class-2,subject-1,Mathematics Round 3 Test 2,2025-09-22,20.0,completed
+exam-0045,class-2,subject-1,Mathematics Round 3 Test 3,2025-10-06,100.0,completed
+exam-0046,class-2,subject-2,English Language Round 1 Test 1,2025-01-13,20.0,completed
+exam-0047,class-2,subject-2,English Language Round 1 Test 2,2025-01-27,20.0,completed
+exam-0048,class-2,subject-2,English Language Round 1 Test 3,2025-02-10,100.0,completed
+exam-0049,class-2,subject-2,English Language Round 2 Test 1,2025-05-12,20.0,completed
+exam-0050,class-2,subject-2,English Language Round 2 Test 2,2025-05-26,20.0,completed
+exam-0051,class-2,subject-2,English Language Round 2 Test 3,2025-06-09,100.0,completed
+exam-0052,class-2,subject-2,English Language Round 3 Test 1,2025-09-08,20.0,completed
+exam-0053,class-2,subject-2,English Language Round 3 Test 2,2025-09-22,20.0,completed
+exam-0054,class-2,subject-2,English Language Round 3 Test 3,2025-10-06,100.0,completed
+exam-0055,class-2,subject-3,Basic Science Round 1 Test 1,2025-01-13,20.0,completed
+exam-0056,class-2,subject-3,Basic Science Round 1 Test 2,2025-01-27,20.0,completed
+exam-0057,class-2,subject-3,Basic Science Round 1 Test 3,2025-02-10,100.0,completed
+exam-0058,class-2,subject-3,Basic Science Round 2 Test 1,2025-05-12,20.0,completed
+exam-0059,class-2,subject-3,Basic Science Round 2 Test 2,2025-05-26,20.0,completed
+exam-0060,class-2,subject-3,Basic Science Round 2 Test 3,2025-06-09,100.0,completed
+exam-0061,class-2,subject-3,Basic Science Round 3 Test 1,2025-09-08,20.0,completed
+exam-0062,class-2,subject-3,Basic Science Round 3 Test 2,2025-09-22,20.0,completed
+exam-0063,class-2,subject-3,Basic Science Round 3 Test 3,2025-10-06,100.0,completed
+exam-0064,class-2,subject-4,Social Studies Round 1 Test 1,2025-01-13,20.0,completed
+exam-0065,class-2,subject-4,Social Studies Round 1 Test 2,2025-01-27,20.0,completed
+exam-0066,class-2,subject-4,Social Studies Round 1 Test 3,2025-02-10,100.0,completed
+exam-0067,class-2,subject-4,Social Studies Round 2 Test 1,2025-05-12,20.0,completed
+exam-0068,class-2,subject-4,Social Studies Round 2 Test 2,2025-05-26,20.0,completed
+exam-0069,class-2,subject-4,Social Studies Round 2 Test 3,2025-06-09,100.0,completed
+exam-0070,class-2,subject-4,Social Studies Round 3 Test 1,2025-09-08,20.0,completed
+exam-0071,class-2,subject-4,Social Studies Round 3 Test 2,2025-09-22,20.0,completed
+exam-0072,class-2,subject-4,Social Studies Round 3 Test 3,2025-10-06,100.0,completed
+exam-0073,class-3,subject-1,Mathematics Round 1 Test 1,2025-01-13,20.0,completed
+exam-0074,class-3,subject-1,Mathematics Round 1 Test 2,2025-01-27,20.0,completed
+exam-0075,class-3,subject-1,Mathematics Round 1 Test 3,2025-02-10,100.0,completed
+exam-0076,class-3,subject-1,Mathematics Round 2 Test 1,2025-05-12,20.0,completed
+exam-0077,class-3,subject-1,Mathematics Round 2 Test 2,2025-05-26,20.0,completed
+exam-0078,class-3,subject-1,Mathematics Round 2 Test 3,2025-06-09,100.0,completed
+exam-0079,class-3,subject-1,Mathematics Round 3 Test 1,2025-09-08,20.0,completed
+exam-0080,class-3,subject-1,Mathematics Round 3 Test 2,2025-09-22,20.0,completed
+exam-0081,class-3,subject-1,Mathematics Round 3 Test 3,2025-10-06,100.0,completed
+exam-0082,class-3,subject-2,English Language Round 1 Test 1,2025-01-13,20.0,completed
+exam-0083,class-3,subject-2,English Language Round 1 Test 2,2025-01-27,20.0,completed
+exam-0084,class-3,subject-2,English Language Round 1 Test 3,2025-02-10,100.0,completed
+exam-0085,class-3,subject-2,English Language Round 2 Test 1,2025-05-12,20.0,completed
+exam-0086,class-3,subject-2,English Language Round 2 Test 2,2025-05-26,20.0,completed
+exam-0087,class-3,subject-2,English Language Round 2 Test 3,2025-06-09,100.0,completed
+exam-0088,class-3,subject-2,English Language Round 3 Test 1,2025-09-08,20.0,completed
+exam-0089,class-3,subject-2,English Language Round 3 Test 2,2025-09-22,20.0,completed
+exam-0090,class-3,subject-2,English Language Round 3 Test 3,2025-10-06,100.0,completed
+exam-0091,class-3,subject-3,Basic Science Round 1 Test 1,2025-01-13,20.0,completed
+exam-0092,class-3,subject-3,Basic Science Round 1 Test 2,2025-01-27,20.0,completed
+exam-0093,class-3,subject-3,Basic Science Round 1 Test 3,2025-02-10,100.0,completed
+exam-0094,class-3,subject-3,Basic Science Round 2 Test 1,2025-05-12,20.0,completed
+exam-0095,class-3,subject-3,Basic Science Round 2 Test 2,2025-05-26,20.0,completed
+exam-0096,class-3,subject-3,Basic Science Round 2 Test 3,2025-06-09,100.0,completed
+exam-0097,class-3,subject-3,Basic Science Round 3 Test 1,2025-09-08,20.0,completed
+exam-0098,class-3,subject-3,Basic Science Round 3 Test 2,2025-09-22,20.0,completed
+exam-0099,class-3,subject-3,Basic Science Round 3 Test 3,2025-10-06,100.0,completed
+exam-0100,class-3,subject-4,Social Studies Round 1 Test 1,2025-01-13,20.0,completed
+exam-0101,class-3,subject-4,Social Studies Round 1 Test 2,2025-01-27,20.0,completed
+exam-0102,class-3,subject-4,Social Studies Round 1 Test 3,2025-02-10,100.0,completed
+exam-0103,class-3,subject-4,Social Studies Round 2 Test 1,2025-05-12,20.0,completed
+exam-0104,class-3,subject-4,Social Studies Round 2 Test 2,2025-05-26,20.0,completed
+exam-0105,class-3,subject-4,Social Studies Round 2 Test 3,2025-06-09,100.0,completed
+exam-0106,class-3,subject-4,Social Studies Round 3 Test 1,2025-09-08,20.0,completed
+exam-0107,class-3,subject-4,Social Studies Round 3 Test 2,2025-09-22,20.0,completed
+exam-0108,class-3,subject-4,Social Studies Round 3 Test 3,2025-10-06,100.0,completed
+exam-0109,class-4,subject-1,Mathematics Round 1 Test 1,2025-01-13,20.0,completed
+exam-0110,class-4,subject-1,Mathematics Round 1 Test 2,2025-01-27,20.0,completed
+exam-0111,class-4,subject-1,Mathematics Round 1 Test 3,2025-02-10,100.0,completed
+exam-0112,class-4,subject-1,Mathematics Round 2 Test 1,2025-05-12,20.0,completed
+exam-0113,class-4,subject-1,Mathematics Round 2 Test 2,2025-05-26,20.0,completed
+exam-0114,class-4,subject-1,Mathematics Round 2 Test 3,2025-06-09,100.0,completed
+exam-0115,class-4,subject-1,Mathematics Round 3 Test 1,2025-09-08,20.0,completed
+exam-0116,class-4,subject-1,Mathematics Round 3 Test 2,2025-09-22,20.0,completed
+exam-0117,class-4,subject-1,Mathematics Round 3 Test 3,2025-10-06,100.0,completed
+exam-0118,class-4,subject-2,English Language Round 1 Test 1,2025-01-13,20.0,completed
+exam-0119,class-4,subject-2,English Language Round 1 Test 2,2025-01-27,20.0,completed
+exam-0120,class-4,subject-2,English Language Round 1 Test 3,2025-02-10,100.0,completed
+exam-0121,class-4,subject-2,English Language Round 2 Test 1,2025-05-12,20.0,completed
+exam-0122,class-4,subject-2,English Language Round 2 Test 2,2025-05-26,20.0,completed
+exam-0123,class-4,subject-2,English Language Round 2 Test 3,2025-06-09,100.0,completed
+exam-0124,class-4,subject-2,English Language Round 3 Test 1,2025-09-08,20.0,completed
+exam-0125,class-4,subject-2,English Language Round 3 Test 2,2025-09-22,20.0,completed
+exam-0126,class-4,subject-2,English Language Round 3 Test 3,2025-10-06,100.0,completed
+exam-0127,class-4,subject-3,Basic Science Round 1 Test 1,2025-01-13,20.0,completed
+exam-0128,class-4,subject-3,Basic Science Round 1 Test 2,2025-01-27,20.0,completed
+exam-0129,class-4,subject-3,Basic Science Round 1 Test 3,2025-02-10,100.0,completed
+exam-0130,class-4,subject-3,Basic Science Round 2 Test 1,2025-05-12,20.0,completed
+exam-0131,class-4,subject-3,Basic Science Round 2 Test 2,2025-05-26,20.0,completed
+exam-0132,class-4,subject-3,Basic Science Round 2 Test 3,2025-06-09,100.0,completed
+exam-0133,class-4,subject-3,Basic Science Round 3 Test 1,2025-09-08,20.0,completed
+exam-0134,class-4,subject-3,Basic Science Round 3 Test 2,2025-09-22,20.0,completed
+exam-0135,class-4,subject-3,Basic Science Round 3 Test 3,2025-10-06,100.0,completed
+exam-0136,class-4,subject-4,Social Studies Round 1 Test 1,2025-01-13,20.0,completed
+exam-0137,class-4,subject-4,Social Studies Round 1 Test 2,2025-01-27,20.0,completed
+exam-0138,class-4,subject-4,Social Studies Round 1 Test 3,2025-02-10,100.0,completed
+exam-0139,class-4,subject-4,Social Studies Round 2 Test 1,2025-05-12,20.0,completed
+exam-0140,class-4,subject-4,Social Studies Round 2 Test 2,2025-05-26,20.0,completed
+exam-0141,class-4,subject-4,Social Studies Round 2 Test 3,2025-06-09,100.0,completed
+exam-0142,class-4,subject-4,Social Studies Round 3 Test 1,2025-09-08,20.0,completed
+exam-0143,class-4,subject-4,Social Studies Round 3 Test 2,2025-09-22,20.0,completed
+exam-0144,class-4,subject-4,Social Studies Round 3 Test 3,2025-10-06,100.0,completed
+exam-0145,class-5,subject-1,Mathematics Round 1 Test 1,2025-01-13,20.0,completed
+exam-0146,class-5,subject-1,Mathematics Round 1 Test 2,2025-01-27,20.0,completed
+exam-0147,class-5,subject-1,Mathematics Round 1 Test 3,2025-02-10,100.0,completed
+exam-0148,class-5,subject-1,Mathematics Round 2 Test 1,2025-05-12,20.0,completed
+exam-0149,class-5,subject-1,Mathematics Round 2 Test 2,2025-05-26,20.0,completed
+exam-0150,class-5,subject-1,Mathematics Round 2 Test 3,2025-06-09,100.0,completed
+exam-0151,class-5,subject-1,Mathematics Round 3 Test 1,2025-09-08,20.0,completed
+exam-0152,class-5,subject-1,Mathematics Round 3 Test 2,2025-09-22,20.0,completed
+exam-0153,class-5,subject-1,Mathematics Round 3 Test 3,2025-10-06,100.0,completed
+exam-0154,class-5,subject-2,English Language Round 1 Test 1,2025-01-13,20.0,completed
+exam-0155,class-5,subject-2,English Language Round 1 Test 2,2025-01-27,20.0,completed
+exam-0156,class-5,subject-2,English Language Round 1 Test 3,2025-02-10,100.0,completed
+exam-0157,class-5,subject-2,English Language Round 2 Test 1,2025-05-12,20.0,completed
+exam-0158,class-5,subject-2,English Language Round 2 Test 2,2025-05-26,20.0,completed
+exam-0159,class-5,subject-2,English Language Round 2 Test 3,2025-06-09,100.0,completed
+exam-0160,class-5,subject-2,English Language Round 3 Test 1,2025-09-08,20.0,completed
+exam-0161,class-5,subject-2,English Language Round 3 Test 2,2025-09-22,20.0,completed
+exam-0162,class-5,subject-2,English Language Round 3 Test 3,2025-10-06,100.0,completed
+exam-0163,class-5,subject-3,Basic Science Round 1 Test 1,2025-01-13,20.0,completed
+exam-0164,class-5,subject-3,Basic Science Round 1 Test 2,2025-01-27,20.0,completed
+exam-0165,class-5,subject-3,Basic Science Round 1 Test 3,2025-02-10,100.0,completed
+exam-0166,class-5,subject-3,Basic Science Round 2 Test 1,2025-05-12,20.0,completed
+exam-0167,class-5,subject-3,Basic Science Round 2 Test 2,2025-05-26,20.0,completed
+exam-0168,class-5,subject-3,Basic Science Round 2 Test 3,2025-06-09,100.0,completed
+exam-0169,class-5,subject-3,Basic Science Round 3 Test 1,2025-09-08,20.0,completed
+exam-0170,class-5,subject-3,Basic Science Round 3 Test 2,2025-09-22,20.0,completed
+exam-0171,class-5,subject-3,Basic Science Round 3 Test 3,2025-10-06,100.0,completed
+exam-0172,class-5,subject-4,Social Studies Round 1 Test 1,2025-01-13,20.0,completed
+exam-0173,class-5,subject-4,Social Studies Round 1 Test 2,2025-01-27,20.0,completed
+exam-0174,class-5,subject-4,Social Studies Round 1 Test 3,2025-02-10,100.0,completed
+exam-0175,class-5,subject-4,Social Studies Round 2 Test 1,2025-05-12,20.0,completed
+exam-0176,class-5,subject-4,Social Studies Round 2 Test 2,2025-05-26,20.0,completed
+exam-0177,class-5,subject-4,Social Studies Round 2 Test 3,2025-06-09,100.0,completed
+exam-0178,class-5,subject-4,Social Studies Round 3 Test 1,2025-09-08,20.0,completed
+exam-0179,class-5,subject-4,Social Studies Round 3 Test 2,2025-09-22,20.0,completed
+exam-0180,class-5,subject-4,Social Studies Round 3 Test 3,2025-10-06,100.0,completed
+exam-0181,class-6,subject-1,Mathematics Round 1 Test 1,2025-01-13,20.0,completed
+exam-0182,class-6,subject-1,Mathematics Round 1 Test 2,2025-01-27,20.0,completed
+exam-0183,class-6,subject-1,Mathematics Round 1 Test 3,2025-02-10,100.0,completed
+exam-0184,class-6,subject-1,Mathematics Round 2 Test 1,2025-05-12,20.0,completed
+exam-0185,class-6,subject-1,Mathematics Round 2 Test 2,2025-05-26,20.0,completed
+exam-0186,class-6,subject-1,Mathematics Round 2 Test 3,2025-06-09,100.0,completed
+exam-0187,class-6,subject-1,Mathematics Round 3 Test 1,2025-09-08,20.0,completed
+exam-0188,class-6,subject-1,Mathematics Round 3 Test 2,2025-09-22,20.0,completed
+exam-0189,class-6,subject-1,Mathematics Round 3 Test 3,2025-10-06,100.0,completed
+exam-0190,class-6,subject-2,English Language Round 1 Test 1,2025-01-13,20.0,completed
+exam-0191,class-6,subject-2,English Language Round 1 Test 2,2025-01-27,20.0,completed
+exam-0192,class-6,subject-2,English Language Round 1 Test 3,2025-02-10,100.0,completed
+exam-0193,class-6,subject-2,English Language Round 2 Test 1,2025-05-12,20.0,completed
+exam-0194,class-6,subject-2,English Language Round 2 Test 2,2025-05-26,20.0,completed
+exam-0195,class-6,subject-2,English Language Round 2 Test 3,2025-06-09,100.0,completed
+exam-0196,class-6,subject-2,English Language Round 3 Test 1,2025-09-08,20.0,completed
+exam-0197,class-6,subject-2,English Language Round 3 Test 2,2025-09-22,20.0,completed
+exam-0198,class-6,subject-2,English Language Round 3 Test 3,2025-10-06,100.0,completed
+exam-0199,class-6,subject-3,Basic Science Round 1 Test 1,2025-01-13,20.0,completed
+exam-0200,class-6,subject-3,Basic Science Round 1 Test 2,2025-01-27,20.0,completed
+exam-0201,class-6,subject-3,Basic Science Round 1 Test 3,2025-02-10,100.0,completed
+exam-0202,class-6,subject-3,Basic Science Round 2 Test 1,2025-05-12,20.0,completed
+exam-0203,class-6,subject-3,Basic Science Round 2 Test 2,2025-05-26,20.0,completed
+exam-0204,class-6,subject-3,Basic Science Round 2 Test 3,2025-06-09,100.0,completed
+exam-0205,class-6,subject-3,Basic Science Round 3 Test 1,2025-09-08,20.0,completed
+exam-0206,class-6,subject-3,Basic Science Round 3 Test 2,2025-09-22,20.0,completed
+exam-0207,class-6,subject-3,Basic Science Round 3 Test 3,2025-10-06,100.0,completed
+exam-0208,class-6,subject-4,Social Studies Round 1 Test 1,2025-01-13,20.0,completed
+exam-0209,class-6,subject-4,Social Studies Round 1 Test 2,2025-01-27,20.0,completed
+exam-0210,class-6,subject-4,Social Studies Round 1 Test 3,2025-02-10,100.0,completed
+exam-0211,class-6,subject-4,Social Studies Round 2 Test 1,2025-05-12,20.0,completed
+exam-0212,class-6,subject-4,Social Studies Round 2 Test 2,2025-05-26,20.0,completed
+exam-0213,class-6,subject-4,Social Studies Round 2 Test 3,2025-06-09,100.0,completed
+exam-0214,class-6,subject-4,Social Studies Round 3 Test 1,2025-09-08,20.0,completed
+exam-0215,class-6,subject-4,Social Studies Round 3 Test 2,2025-09-22,20.0,completed
+exam-0216,class-6,subject-4,Social Studies Round 3 Test 3,2025-10-06,100.0,completed

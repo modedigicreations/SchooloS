@@ -3,20 +3,25 @@
 These functions are the only source of facts the conversational layer is
 allowed to state as fact: every number returned here is computed directly
 from the ingested data, not produced by a language model.
+
+Shaped to match what a real school platform actually tracks (see
+docs/real-data-ingest-notes.md): there is no "term" — an exam is a
+standalone test tied to one class+subject, ordered by date. A teacher is
+linked only to a class, as its single "class teacher"; there is no
+per-subject teacher assignment.
 """
 
 import sqlite3
-from dataclasses import dataclass
 
 
 class NotFoundError(Exception):
     pass
 
 
-_SINGULAR = {"classes": "class", "subjects": "subject", "terms": "term"}
+_SINGULAR = {"classes": "class", "subjects": "subject"}
 
 
-def _resolve_id(conn: sqlite3.Connection, table: str, name: str) -> int:
+def _resolve_id(conn: sqlite3.Connection, table: str, name: str) -> str:
     row = conn.execute(f"SELECT id FROM {table} WHERE name = ? COLLATE NOCASE", (name,)).fetchone()
     if row is None:
         raise NotFoundError(f"no {_SINGULAR.get(table, table)} named '{name}'")
@@ -25,36 +30,31 @@ def _resolve_id(conn: sqlite3.Connection, table: str, name: str) -> int:
 
 def _check_exists(conn: sqlite3.Connection, table: str, name: str | None) -> None:
     """Raise NotFoundError on an unmatched name instead of letting a filtered query
-    silently return zero rows for a typo'd or misremembered class/subject/term."""
+    silently return zero rows for a typo'd or misremembered class/subject name."""
     if name is not None:
         _resolve_id(conn, table, name)
 
 
 def list_classes(conn: sqlite3.Connection) -> list[dict]:
-    return [dict(r) for r in conn.execute("SELECT id, name FROM classes ORDER BY id")]
+    return [dict(r) for r in conn.execute("SELECT id, name FROM classes ORDER BY name")]
 
 
 def list_subjects(conn: sqlite3.Connection) -> list[dict]:
-    return [dict(r) for r in conn.execute("SELECT id, name FROM subjects ORDER BY id")]
-
-
-def list_terms(conn: sqlite3.Connection) -> list[dict]:
-    return [dict(r) for r in conn.execute("SELECT id, name, sequence FROM terms ORDER BY sequence")]
+    return [dict(r) for r in conn.execute("SELECT id, name, code FROM subjects ORDER BY name")]
 
 
 def underperforming_students(
     conn: sqlite3.Connection,
     class_name: str | None = None,
     subject: str | None = None,
-    term: str | None = None,
     threshold_percent: float = 50.0,
 ) -> list[dict]:
-    """Students whose average percent score (over matching assessments) is at or below threshold_percent."""
+    """Students whose average percent score (over matching, graded exams) is at or
+    below threshold_percent. Ungraded/missing results are not counted."""
     _check_exists(conn, "classes", class_name)
     _check_exists(conn, "subjects", subject)
-    _check_exists(conn, "terms", term)
 
-    where = []
+    where = ["r.score IS NOT NULL"]
     params: list = []
     if class_name:
         where.append("cl.name = ? COLLATE NOCASE")
@@ -62,21 +62,17 @@ def underperforming_students(
     if subject:
         where.append("su.name = ? COLLATE NOCASE")
         params.append(subject)
-    if term:
-        where.append("te.name = ? COLLATE NOCASE")
-        params.append(term)
-    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    where_sql = f"WHERE {' AND '.join(where)}"
 
     sql = f"""
         SELECT st.id AS student_id, st.name AS student_name, cl.name AS class_name,
-               AVG(100.0 * r.score / a.max_score) AS average_percent,
-               COUNT(*) AS assessments_counted
-        FROM results r
-        JOIN assessments a ON a.id = r.assessment_id
+               AVG(100.0 * r.score / e.total_marks) AS average_percent,
+               COUNT(*) AS exams_counted
+        FROM exam_results r
+        JOIN exams e ON e.id = r.exam_id
         JOIN students st ON st.id = r.student_id
         JOIN classes cl ON cl.id = st.class_id
-        JOIN subjects su ON su.id = a.subject_id
-        JOIN terms te ON te.id = a.term_id
+        JOIN subjects su ON su.id = e.subject_id
         {where_sql}
         GROUP BY st.id
         HAVING average_percent <= ?
@@ -95,22 +91,20 @@ def compare_assessment_performance(
     subject: str,
     last_n: int = 3,
 ) -> list[dict]:
-    """Class-average percent score on the most recent `last_n` assessments for a class+subject,
-    ordered chronologically (term sequence, then assessment sequence within term)."""
+    """Class-average percent score on the most recent `last_n` exams for a
+    class+subject, ordered chronologically by exam date."""
     class_id = _resolve_id(conn, "classes", class_name)
     subject_id = _resolve_id(conn, "subjects", subject)
 
     sql = """
-        SELECT a.id AS assessment_id, te.name AS term, te.sequence AS term_sequence,
-               a.name AS assessment_name, a.sequence AS assessment_sequence, a.max_score,
-               AVG(100.0 * r.score / a.max_score) AS average_percent,
-               COUNT(r.student_id) AS students_counted
-        FROM assessments a
-        JOIN terms te ON te.id = a.term_id
-        LEFT JOIN results r ON r.assessment_id = a.id
-        WHERE a.class_id = ? AND a.subject_id = ?
-        GROUP BY a.id
-        ORDER BY te.sequence, a.sequence
+        SELECT e.id AS exam_id, e.title AS exam_title, e.exam_date, e.total_marks,
+               AVG(100.0 * r.score / e.total_marks) AS average_percent,
+               SUM(CASE WHEN r.score IS NOT NULL THEN 1 ELSE 0 END) AS students_counted
+        FROM exams e
+        LEFT JOIN exam_results r ON r.exam_id = e.id
+        WHERE e.class_id = ? AND e.subject_id = ?
+        GROUP BY e.id
+        ORDER BY e.exam_date
     """
     rows = [dict(r) for r in conn.execute(sql, (class_id, subject_id))]
     for r in rows:
@@ -119,75 +113,56 @@ def compare_assessment_performance(
     return rows[-last_n:]
 
 
-def compare_term_performance(conn: sqlite3.Connection, class_name: str, subject: str) -> list[dict]:
-    """Class-average percent score per term for a class+subject, in term order."""
-    class_id = _resolve_id(conn, "classes", class_name)
-    subject_id = _resolve_id(conn, "subjects", subject)
-
-    sql = """
-        SELECT te.name AS term, te.sequence AS term_sequence,
-               AVG(100.0 * r.score / a.max_score) AS average_percent,
-               COUNT(DISTINCT r.student_id) AS students_counted
-        FROM assessments a
-        JOIN terms te ON te.id = a.term_id
-        JOIN results r ON r.assessment_id = a.id
-        WHERE a.class_id = ? AND a.subject_id = ?
-        GROUP BY te.id
-        ORDER BY te.sequence
-    """
-    rows = [dict(r) for r in conn.execute(sql, (class_id, subject_id))]
-    for r in rows:
-        r["average_percent"] = round(r["average_percent"], 1)
-    return rows
-
-
 def rank_teacher_improvement(conn: sqlite3.Connection, top_n: int | None = None) -> list[dict]:
-    """Rank teachers by how much their classes' average percent score improved from the
-    first term on record to the last, across every class+subject they teach, most-improved
-    first. Pass top_n to return only the top N instead of every teacher."""
+    """Rank teachers by how much their class's (or classes', if they're the class
+    teacher of more than one) average percent score improved from its earliest
+    graded exam on record to its most recent, per subject, most-improved first.
+    Pass top_n to return only the top N instead of every teacher.
+
+    Note: a teacher here means "class teacher" — the platform this data comes
+    from has no per-subject teacher assignment, so this reflects the whole
+    class's trend across its subjects, not one teacher's own subject.
+    """
     sql = """
         SELECT t.id AS teacher_id, t.name AS teacher_name,
                cl.name AS class_name, su.name AS subject_name,
-               te.sequence AS term_sequence, te.name AS term_name,
-               AVG(100.0 * r.score / a.max_score) AS average_percent
-        FROM class_subject_teacher cst
-        JOIN teachers t ON t.id = cst.teacher_id
-        JOIN classes cl ON cl.id = cst.class_id
-        JOIN subjects su ON su.id = cst.subject_id
-        JOIN assessments a ON a.class_id = cst.class_id AND a.subject_id = cst.subject_id
-        JOIN terms te ON te.id = a.term_id
-        JOIN results r ON r.assessment_id = a.id
-        GROUP BY t.id, cl.id, su.id, te.id
-        ORDER BY t.id, cl.id, su.id, te.sequence
+               e.id AS exam_id, e.exam_date,
+               AVG(100.0 * r.score / e.total_marks) AS average_percent
+        FROM classes cl
+        JOIN teachers t ON t.id = cl.class_teacher_id
+        JOIN exams e ON e.class_id = cl.id
+        JOIN subjects su ON su.id = e.subject_id
+        JOIN exam_results r ON r.exam_id = e.id AND r.score IS NOT NULL
+        GROUP BY t.id, cl.id, su.id, e.id
+        ORDER BY t.id, cl.id, su.id, e.exam_date
     """
     rows = [dict(r) for r in conn.execute(sql)]
 
-    # Group by (teacher, class, subject) and compute first-term vs last-term improvement.
     groups: dict[tuple, list[dict]] = {}
     for r in rows:
         key = (r["teacher_id"], r["teacher_name"], r["class_name"], r["subject_name"])
         groups.setdefault(key, []).append(r)
 
     assignment_improvements = []
-    for (teacher_id, teacher_name, class_name, subject_name), terms_rows in groups.items():
-        terms_rows.sort(key=lambda x: x["term_sequence"])
-        if len(terms_rows) < 2:
+    for (teacher_id, teacher_name, class_name, subject_name), exam_rows in groups.items():
+        exam_rows.sort(key=lambda x: x["exam_date"])
+        if len(exam_rows) < 2:
             continue
-        first, last = terms_rows[0], terms_rows[-1]
+        first, last = exam_rows[0], exam_rows[-1]
         improvement = last["average_percent"] - first["average_percent"]
         assignment_improvements.append({
             "teacher_id": teacher_id,
             "teacher_name": teacher_name,
             "class_name": class_name,
             "subject_name": subject_name,
-            "first_term": first["term_name"],
-            "first_term_average_percent": round(first["average_percent"], 1),
-            "last_term": last["term_name"],
-            "last_term_average_percent": round(last["average_percent"], 1),
+            "earliest_exam_date": first["exam_date"],
+            "earliest_average_percent": round(first["average_percent"], 1),
+            "latest_exam_date": last["exam_date"],
+            "latest_average_percent": round(last["average_percent"], 1),
             "improvement_percentage_points": round(improvement, 1),
         })
 
-    teacher_totals: dict[int, dict] = {}
+    teacher_totals: dict[str, dict] = {}
     for row in assignment_improvements:
         tid = row["teacher_id"]
         bucket = teacher_totals.setdefault(tid, {"teacher_name": row["teacher_name"], "assignments": []})
@@ -209,22 +184,26 @@ def rank_teacher_improvement(conn: sqlite3.Connection, top_n: int | None = None)
 def attendance_summary(
     conn: sqlite3.Connection,
     class_name: str | None = None,
-    term: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
     chronic_threshold_percent: float = 85.0,
 ) -> dict:
     """Overall attendance rate plus the list of students at or below chronic_threshold_percent
-    present-rate (candidates for attendance intervention)."""
+    present-rate (candidates for attendance intervention). Optionally scope to one class
+    and/or a date range (YYYY-MM-DD, inclusive)."""
     _check_exists(conn, "classes", class_name)
-    _check_exists(conn, "terms", term)
 
     where = []
     params: list = []
     if class_name:
         where.append("cl.name = ? COLLATE NOCASE")
         params.append(class_name)
-    if term:
-        where.append("te.name = ? COLLATE NOCASE")
-        params.append(term)
+    if from_date:
+        where.append("at.date >= ?")
+        params.append(from_date)
+    if to_date:
+        where.append("at.date <= ?")
+        params.append(to_date)
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
 
     overall_sql = f"""
@@ -234,7 +213,6 @@ def attendance_summary(
         FROM attendance at
         JOIN students st ON st.id = at.student_id
         JOIN classes cl ON cl.id = st.class_id
-        JOIN terms te ON te.id = at.term_id
         {where_sql}
     """
     overall = dict(conn.execute(overall_sql, params).fetchone())
@@ -247,7 +225,6 @@ def attendance_summary(
         FROM attendance at
         JOIN students st ON st.id = at.student_id
         JOIN classes cl ON cl.id = st.class_id
-        JOIN terms te ON te.id = at.term_id
         {where_sql}
         GROUP BY st.id
         HAVING present_rate <= ?
@@ -276,7 +253,7 @@ def intervention_candidates(
     _check_exists(conn, "classes", class_name)
     _check_exists(conn, "subjects", subject)
 
-    where = []
+    where = ["r.score IS NOT NULL"]
     params: list = []
     if class_name:
         where.append("cl.name = ? COLLATE NOCASE")
@@ -284,16 +261,16 @@ def intervention_candidates(
     if subject:
         where.append("su.name = ? COLLATE NOCASE")
         params.append(subject)
-    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    where_sql = f"WHERE {' AND '.join(where)}"
 
     sql = f"""
         SELECT st.id AS student_id, st.name AS student_name, cl.name AS class_name,
-               AVG(100.0 * r.score / a.max_score) AS average_percent
-        FROM results r
-        JOIN assessments a ON a.id = r.assessment_id
+               AVG(100.0 * r.score / e.total_marks) AS average_percent
+        FROM exam_results r
+        JOIN exams e ON e.id = r.exam_id
         JOIN students st ON st.id = r.student_id
         JOIN classes cl ON cl.id = st.class_id
-        JOIN subjects su ON su.id = a.subject_id
+        JOIN subjects su ON su.id = e.subject_id
         {where_sql}
         GROUP BY st.id
         ORDER BY average_percent ASC
@@ -307,11 +284,11 @@ def intervention_candidates(
     for c in candidates:
         c["average_percent"] = round(c["average_percent"], 1)
         subject_rows = conn.execute("""
-            SELECT su.name AS subject_name, AVG(100.0 * r.score / a.max_score) AS average_percent
-            FROM results r
-            JOIN assessments a ON a.id = r.assessment_id
-            JOIN subjects su ON su.id = a.subject_id
-            WHERE r.student_id = ?
+            SELECT su.name AS subject_name, AVG(100.0 * r.score / e.total_marks) AS average_percent
+            FROM exam_results r
+            JOIN exams e ON e.id = r.exam_id
+            JOIN subjects su ON su.id = e.subject_id
+            WHERE r.student_id = ? AND r.score IS NOT NULL
             GROUP BY su.id
             ORDER BY average_percent ASC
         """, (c["student_id"],)).fetchall()
@@ -327,43 +304,59 @@ def intervention_candidates(
     return candidates
 
 
-def term_report_data(conn: sqlite3.Connection, class_name: str, term: str) -> dict:
-    """Aggregated facts for drafting an end-of-term report for one class."""
+def get_class_report_data(
+    conn: sqlite3.Connection,
+    class_name: str,
+    from_date: str | None = None,
+    to_date: str | None = None,
+) -> dict:
+    """Aggregated facts for drafting a report for one class: overall and
+    per-subject averages, top/bottom students, and attendance. Covers every
+    graded exam on record by default; optionally scope to a date range
+    (YYYY-MM-DD, inclusive) if the school wants a report for one period."""
     class_id = _resolve_id(conn, "classes", class_name)
-    term_id = _resolve_id(conn, "terms", term)
 
-    overall = conn.execute("""
-        SELECT AVG(100.0 * r.score / a.max_score) AS average_percent, COUNT(DISTINCT r.student_id) AS students_counted
-        FROM results r JOIN assessments a ON a.id = r.assessment_id
-        WHERE a.class_id = ? AND a.term_id = ?
-    """, (class_id, term_id)).fetchone()
+    where = ["e.class_id = ?", "r.score IS NOT NULL"]
+    params: list = [class_id]
+    if from_date:
+        where.append("e.exam_date >= ?")
+        params.append(from_date)
+    if to_date:
+        where.append("e.exam_date <= ?")
+        params.append(to_date)
+    where_sql = f"WHERE {' AND '.join(where)}"
 
-    by_subject = conn.execute("""
-        SELECT su.name AS subject, AVG(100.0 * r.score / a.max_score) AS average_percent
-        FROM results r
-        JOIN assessments a ON a.id = r.assessment_id
-        JOIN subjects su ON su.id = a.subject_id
-        WHERE a.class_id = ? AND a.term_id = ?
+    overall = conn.execute(f"""
+        SELECT AVG(100.0 * r.score / e.total_marks) AS average_percent, COUNT(DISTINCT r.student_id) AS students_counted
+        FROM exam_results r JOIN exams e ON e.id = r.exam_id
+        {where_sql}
+    """, params).fetchone()
+
+    by_subject = conn.execute(f"""
+        SELECT su.name AS subject, AVG(100.0 * r.score / e.total_marks) AS average_percent
+        FROM exam_results r
+        JOIN exams e ON e.id = r.exam_id
+        JOIN subjects su ON su.id = e.subject_id
+        {where_sql}
         GROUP BY su.id ORDER BY average_percent DESC
-    """, (class_id, term_id)).fetchall()
+    """, params).fetchall()
 
-    per_student = conn.execute("""
-        SELECT st.name AS student_name, AVG(100.0 * r.score / a.max_score) AS average_percent
-        FROM results r
-        JOIN assessments a ON a.id = r.assessment_id
+    per_student = conn.execute(f"""
+        SELECT st.name AS student_name, AVG(100.0 * r.score / e.total_marks) AS average_percent
+        FROM exam_results r
+        JOIN exams e ON e.id = r.exam_id
         JOIN students st ON st.id = r.student_id
-        WHERE a.class_id = ? AND a.term_id = ?
+        {where_sql}
         GROUP BY st.id ORDER BY average_percent DESC
-    """, (class_id, term_id)).fetchall()
+    """, params).fetchall()
     per_student = [dict(r) for r in per_student]
     for r in per_student:
         r["average_percent"] = round(r["average_percent"], 1)
 
-    attendance = attendance_summary(conn, class_name=class_name, term=term)
+    attendance = attendance_summary(conn, class_name=class_name, from_date=from_date, to_date=to_date)
 
     return {
         "class_name": class_name,
-        "term": term,
         "class_average_percent": round(overall["average_percent"], 1) if overall["average_percent"] is not None else None,
         "students_counted": overall["students_counted"],
         "by_subject": [{"subject": r["subject"], "average_percent": round(r["average_percent"], 1)} for r in by_subject],
@@ -388,7 +381,7 @@ def find_student(conn: sqlite3.Connection, name: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def get_student_profile(conn: sqlite3.Connection, student_id: int) -> dict:
+def get_student_profile(conn: sqlite3.Connection, student_id: str) -> dict:
     """Full profile for one student: overall and per-subject averages, attendance
     rate, and class. Look up student_id with find_student first."""
     student = conn.execute("""
@@ -400,17 +393,17 @@ def get_student_profile(conn: sqlite3.Connection, student_id: int) -> dict:
         raise NotFoundError(f"no student with id {student_id} — use find_student to look one up")
 
     overall = conn.execute("""
-        SELECT AVG(100.0 * r.score / a.max_score) AS average_percent
-        FROM results r JOIN assessments a ON a.id = r.assessment_id
-        WHERE r.student_id = ?
+        SELECT AVG(100.0 * r.score / e.total_marks) AS average_percent
+        FROM exam_results r JOIN exams e ON e.id = r.exam_id
+        WHERE r.student_id = ? AND r.score IS NOT NULL
     """, (student_id,)).fetchone()
 
     by_subject = conn.execute("""
-        SELECT su.name AS subject, AVG(100.0 * r.score / a.max_score) AS average_percent
-        FROM results r
-        JOIN assessments a ON a.id = r.assessment_id
-        JOIN subjects su ON su.id = a.subject_id
-        WHERE r.student_id = ?
+        SELECT su.name AS subject, AVG(100.0 * r.score / e.total_marks) AS average_percent
+        FROM exam_results r
+        JOIN exams e ON e.id = r.exam_id
+        JOIN subjects su ON su.id = e.subject_id
+        WHERE r.student_id = ? AND r.score IS NOT NULL
         GROUP BY su.id ORDER BY average_percent DESC
     """, (student_id,)).fetchall()
 
@@ -433,29 +426,23 @@ def get_student_profile(conn: sqlite3.Connection, student_id: int) -> dict:
     }
 
 
-def compare_classes_on_subject(conn: sqlite3.Connection, subject: str, term: str | None = None) -> list[dict]:
-    """Compare every class's average percent score on one subject, strongest first.
-    Optionally scope to one term; otherwise averages across all terms on record."""
+def compare_classes_on_subject(conn: sqlite3.Connection, subject: str) -> list[dict]:
+    """Compare every class's average percent score on one subject, strongest first,
+    across all graded exams on record."""
     subject_id = _resolve_id(conn, "subjects", subject)
-    where = ["a.subject_id = ?"]
-    params: list = [subject_id]
-    if term:
-        term_id = _resolve_id(conn, "terms", term)
-        where.append("a.term_id = ?")
-        params.append(term_id)
 
-    sql = f"""
+    sql = """
         SELECT cl.name AS class_name,
-               AVG(100.0 * r.score / a.max_score) AS average_percent,
+               AVG(100.0 * r.score / e.total_marks) AS average_percent,
                COUNT(DISTINCT r.student_id) AS students_counted
-        FROM results r
-        JOIN assessments a ON a.id = r.assessment_id
-        JOIN classes cl ON cl.id = a.class_id
-        WHERE {' AND '.join(where)}
+        FROM exam_results r
+        JOIN exams e ON e.id = r.exam_id
+        JOIN classes cl ON cl.id = e.class_id
+        WHERE e.subject_id = ? AND r.score IS NOT NULL
         GROUP BY cl.id
         ORDER BY average_percent DESC
     """
-    rows = [dict(r) for r in conn.execute(sql, params)]
+    rows = [dict(r) for r in conn.execute(sql, (subject_id,))]
     for r in rows:
         r["average_percent"] = round(r["average_percent"], 1)
     return rows

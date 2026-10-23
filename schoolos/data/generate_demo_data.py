@@ -1,9 +1,15 @@
 """Generate a synthetic demo dataset for a fictional Nigerian primary school.
 
-Deliberately engineers a few signal patterns (an improving teacher, a declining
-teacher, a consistent bottom-10% of students, a handful of chronic absentees)
-so that analytics queries over the data produce meaningful, demo-able answers
-instead of pure noise.
+Shaped to match a real school platform's data (see
+docs/real-data-ingest-notes.md): string ids (as a real platform's own UUIDs
+would be, used directly rather than through an id-translation layer), no
+"term" concept (exams are standalone, ordered by date), and teachers linked
+only to a class as its single class teacher (no per-subject assignment).
+
+Deliberately engineers a few signal patterns (an improving class, a
+declining class, a consistent bottom-10% of students, a handful of chronic
+absentees) so that analytics queries over the data produce meaningful,
+demo-able answers instead of pure noise.
 
 Usage: python -m schoolos.data.generate_demo_data [output_dir]
 """
@@ -17,11 +23,12 @@ from pathlib import Path
 SEED = 42
 
 CLASSES = ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6"]
-SUBJECTS = ["Mathematics", "English Language", "Basic Science", "Social Studies"]
-TERMS = [("2025/2026 Term 1", 1), ("2025/2026 Term 2", 2), ("2025/2026 Term 3", 3)]
-ASSESSMENT_PLAN = [("CA1", 1, 20.0), ("CA2", 2, 20.0), ("Exam", 3, 60.0)]
+SUBJECTS = [("Mathematics", "MTH"), ("English Language", "ENG"), ("Basic Science", "BSC"), ("Social Studies", "SOS")]
 STUDENTS_PER_CLASS = 25
-SCHOOL_DAYS_PER_TERM = 55
+# Three rounds of exams across the school year (no "term" label — just dates).
+ROUNDS = [date(2025, 1, 13), date(2025, 5, 12), date(2025, 9, 8)]
+EXAMS_PER_ROUND = 3
+SCHOOL_DAYS_PER_ROUND = 55
 
 FIRST_NAMES_M = [
     "Adebayo", "Chinedu", "Emeka", "Oluwaseun", "Ibrahim", "Tunde", "Chukwuemeka",
@@ -41,8 +48,8 @@ LAST_NAMES = [
 
 
 def make_name(rng: random.Random) -> tuple[str, str]:
-    gender = rng.choice(["M", "F"])
-    first = rng.choice(FIRST_NAMES_M if gender == "M" else FIRST_NAMES_F)
+    gender = rng.choice(["male", "female"])
+    first = rng.choice(FIRST_NAMES_M if gender == "male" else FIRST_NAMES_F)
     last = rng.choice(LAST_NAMES)
     return f"{first} {last}", gender
 
@@ -59,57 +66,51 @@ def generate(out_dir: Path) -> None:
     teachers = []
     for i in range(1, 11):
         name, _ = make_name(rng)
-        teachers.append({"id": i, "name": f"Mrs. {name}" if i % 2 else f"Mr. {name}",
-                          "subject_specialty": rng.choice(SUBJECTS)})
+        teachers.append({
+            "id": f"teacher-{i}",
+            "name": f"Mrs. {name}" if i % 2 else f"Mr. {name}",
+            "employee_number": f"EMP-{i:03d}",
+            "status": "active",
+        })
 
-    # Pick two specific teachers to carry an engineered trend:
+    # Pick two specific teachers to carry an engineered trend (as class teachers).
     improving_teacher_id = teachers[0]["id"]
     declining_teacher_id = teachers[1]["id"]
 
-    # --- classes --------------------------------------------------------
+    # --- classes: assign class teachers, forcing the trend onto Primary 5 / 3 --
     classes = []
-    form_teacher_cycle = teachers[:]
+    # Exclude the two engineered teachers so the random assignment below can't
+    # coincidentally hand them a second class, which would muddy the signal.
+    form_teacher_cycle = [t for t in teachers if t["id"] not in (improving_teacher_id, declining_teacher_id)]
     rng.shuffle(form_teacher_cycle)
     for i, cname in enumerate(CLASSES, start=1):
-        classes.append({"id": i, "name": cname,
-                         "form_teacher_id": form_teacher_cycle[i % len(form_teacher_cycle)]["id"]})
+        if cname == "Primary 5":
+            class_teacher_id = improving_teacher_id
+        elif cname == "Primary 3":
+            class_teacher_id = declining_teacher_id
+        else:
+            class_teacher_id = form_teacher_cycle[i % len(form_teacher_cycle)]["id"]
+        classes.append({"id": f"class-{i}", "name": cname, "class_teacher_id": class_teacher_id})
 
     # --- subjects ---------------------------------------------------------
-    subjects = [{"id": i, "name": s} for i, s in enumerate(SUBJECTS, start=1)]
-
-    # --- class_subject_teacher: assign a teacher to each class+subject ----
-    class_subject_teacher = []
-    for c in classes:
-        for s in subjects:
-            # Force the improving/declining signal onto Primary 5 Mathematics
-            # and Primary 3 English respectively; randomize the rest.
-            if c["name"] == "Primary 5" and s["name"] == "Mathematics":
-                teacher_id = improving_teacher_id
-            elif c["name"] == "Primary 3" and s["name"] == "English Language":
-                teacher_id = declining_teacher_id
-            else:
-                teacher_id = rng.choice(teachers)["id"]
-            class_subject_teacher.append({"class_id": c["id"], "subject_id": s["id"], "teacher_id": teacher_id})
-
-    # --- terms --------------------------------------------------------------
-    terms = [{"id": i, "name": name, "sequence": seq} for i, (name, seq) in enumerate(TERMS, start=1)]
+    subjects = [{"id": f"subject-{i}", "name": name, "code": code}
+                for i, (name, code) in enumerate(SUBJECTS, start=1)]
 
     # --- students -------------------------------------------------------------
     students = []
-    student_id = 1
-    # Reserve a consistent "bottom 10%" per class with a low ability baseline,
-    # and a handful of chronic absentees (overlapping only partially with the
-    # low performers, since that's realistic and more interesting to query).
+    student_seq = 1
     student_profile = {}  # student_id -> dict(ability, chronic_absentee)
     for c in classes:
         class_student_ids = []
         for _ in range(STUDENTS_PER_CLASS):
             name, gender = make_name(rng)
-            admission_number = f"DEM/2025/{student_id:04d}"
-            students.append({"id": student_id, "name": name, "class_id": c["id"], "gender": gender,
-                              "admission_number": admission_number})
-            class_student_ids.append(student_id)
-            student_id += 1
+            sid = f"student-{student_seq:04d}"
+            students.append({
+                "id": sid, "name": name, "class_id": c["id"], "gender": gender,
+                "status": "active", "admission_number": f"DEM/2025/{student_seq:04d}",
+            })
+            class_student_ids.append(sid)
+            student_seq += 1
 
         n_low = max(2, round(STUDENTS_PER_CLASS * 0.10))
         low_ids = set(rng.sample(class_student_ids, n_low))
@@ -117,61 +118,54 @@ def generate(out_dir: Path) -> None:
         chronic_ids = set(rng.sample(class_student_ids, n_chronic))
 
         for sid in class_student_ids:
-            if sid in low_ids:
-                ability = rng.uniform(0.30, 0.45)
-            else:
-                ability = rng.uniform(0.55, 0.92)
-            student_profile[sid] = {
-                "ability": ability,
-                "chronic_absentee": sid in chronic_ids,
-            }
+            ability = rng.uniform(0.30, 0.45) if sid in low_ids else rng.uniform(0.55, 0.92)
+            student_profile[sid] = {"ability": ability, "chronic_absentee": sid in chronic_ids}
 
-    # --- assessments -----------------------------------------------------------
-    assessments = []
-    assessment_id = 1
-    # assessment lookup for result generation: (class_id, subject_id, term_id) -> [(id, max_score, seq), ...]
-    assessments_by_group: dict[tuple[int, int, int], list[tuple[int, float, int]]] = {}
-    for c in classes:
-        for s in subjects:
-            for t in terms:
-                for name, seq, max_score in ASSESSMENT_PLAN:
-                    assessments.append({"id": assessment_id, "class_id": c["id"], "subject_id": s["id"],
-                                         "term_id": t["id"], "name": name, "sequence": seq, "max_score": max_score})
-                    assessments_by_group.setdefault((c["id"], s["id"], t["id"]), []).append(
-                        (assessment_id, max_score, seq))
-                    assessment_id += 1
+    # --- exams + exam_results ----------------------------------------------
+    exams = []
+    exam_results = []
+    exam_seq = 1
+    class_teacher_by_class = {c["id"]: c["class_teacher_id"] for c in classes}
 
-    # --- results ----------------------------------------------------------------
-    results = []
-    cst_lookup = {(row["class_id"], row["subject_id"]): row["teacher_id"] for row in class_subject_teacher}
     for c in classes:
         class_students = [st for st in students if st["class_id"] == c["id"]]
+        teacher_id = class_teacher_by_class[c["id"]]
         for s in subjects:
-            teacher_id = cst_lookup[(c["id"], s["id"])]
-            for t in terms:
-                # Term-level trend multiplier driven by the engineered teacher signal.
+            for round_num, round_start in enumerate(ROUNDS, start=1):
                 if teacher_id == improving_teacher_id:
-                    trend = 1.0 + 0.10 * (t["sequence"] - 1)   # +0%, +10%, +20%
+                    trend = 1.0 + 0.10 * (round_num - 1)   # +0%, +10%, +20%
                 elif teacher_id == declining_teacher_id:
-                    trend = 1.0 - 0.10 * (t["sequence"] - 1)   # 0%, -10%, -20%
+                    trend = 1.0 - 0.10 * (round_num - 1)   # 0%, -10%, -20%
                 else:
                     trend = 1.0 + rng.uniform(-0.03, 0.03)
 
-                for assess_id, max_score, _seq in assessments_by_group[(c["id"], s["id"], t["id"])]:
+                for n in range(EXAMS_PER_ROUND):
+                    exam_id = f"exam-{exam_seq:04d}"
+                    exam_date = round_start + timedelta(days=n * 14)
+                    total_marks = 100.0 if n == EXAMS_PER_ROUND - 1 else 20.0
+                    exams.append({
+                        "id": exam_id, "class_id": c["id"], "subject_id": s["id"],
+                        "title": f"{s['name']} Round {round_num} Test {n + 1}",
+                        "exam_date": exam_date.isoformat(), "total_marks": total_marks,
+                        "status": "completed",
+                    })
                     for st in class_students:
                         ability = student_profile[st["id"]]["ability"]
                         noise = rng.uniform(-0.08, 0.08)
                         fraction = clamp(ability * trend + noise, 0.05, 1.0)
-                        score = round(fraction * max_score, 1)
-                        results.append({"assessment_id": assess_id, "student_id": st["id"], "score": score})
+                        score = round(fraction * total_marks, 1)
+                        exam_results.append({
+                            "exam_id": exam_id, "student_id": st["id"],
+                            "score": score, "attempt_status": "graded",
+                        })
+                    exam_seq += 1
 
     # --- attendance -----------------------------------------------------------------
     attendance = []
-    for t in terms:
-        start = date(2025, 1 + 4 * (t["sequence"] - 1), 6)
+    for round_start in ROUNDS:
         day_count = 0
-        current = start
-        while day_count < SCHOOL_DAYS_PER_TERM:
+        current = round_start
+        while day_count < SCHOOL_DAYS_PER_ROUND:
             if current.weekday() < 5:  # Mon-Fri only
                 for st in students:
                     profile = student_profile[st["id"]]
@@ -184,25 +178,25 @@ def generate(out_dir: Path) -> None:
                         status = "late"
                     else:
                         status = "present"
-                    attendance.append({"student_id": st["id"], "date": current.isoformat(),
-                                        "status": status, "term_id": t["id"]})
+                    attendance.append({
+                        "student_id": st["id"], "class_id": st["class_id"],
+                        "date": current.isoformat(), "status": status,
+                    })
                 day_count += 1
             current += timedelta(days=1)
 
-    _write_csv(out_dir / "teachers.csv", teachers, ["id", "name", "subject_specialty"])
-    _write_csv(out_dir / "classes.csv", classes, ["id", "name", "form_teacher_id"])
-    _write_csv(out_dir / "subjects.csv", subjects, ["id", "name"])
-    _write_csv(out_dir / "class_subject_teacher.csv", class_subject_teacher,
-               ["class_id", "subject_id", "teacher_id"])
-    _write_csv(out_dir / "students.csv", students, ["id", "name", "class_id", "gender", "admission_number"])
-    _write_csv(out_dir / "terms.csv", terms, ["id", "name", "sequence"])
-    _write_csv(out_dir / "assessments.csv", assessments,
-               ["id", "class_id", "subject_id", "term_id", "name", "sequence", "max_score"])
-    _write_csv(out_dir / "results.csv", results, ["assessment_id", "student_id", "score"])
-    _write_csv(out_dir / "attendance.csv", attendance, ["student_id", "date", "status", "term_id"])
+    _write_csv(out_dir / "teachers.csv", teachers, ["id", "name", "employee_number", "status"])
+    _write_csv(out_dir / "classes.csv", classes, ["id", "name", "class_teacher_id"])
+    _write_csv(out_dir / "subjects.csv", subjects, ["id", "name", "code"])
+    _write_csv(out_dir / "students.csv", students,
+               ["id", "name", "class_id", "gender", "status", "admission_number"])
+    _write_csv(out_dir / "exams.csv", exams,
+               ["id", "class_id", "subject_id", "title", "exam_date", "total_marks", "status"])
+    _write_csv(out_dir / "exam_results.csv", exam_results, ["exam_id", "student_id", "score", "attempt_status"])
+    _write_csv(out_dir / "attendance.csv", attendance, ["student_id", "class_id", "date", "status"])
 
     print(f"Wrote demo dataset to {out_dir} "
-          f"({len(students)} students, {len(results)} results, {len(attendance)} attendance records)")
+          f"({len(students)} students, {len(exam_results)} exam results, {len(attendance)} attendance records)")
 
 
 def _write_csv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:

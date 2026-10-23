@@ -1,5 +1,5 @@
-id,name
-1,Mathematics
-2,English Language
-3,Basic Science
-4,Social Studies
+id,name,code
+subject-1,Mathematics,MTH
+subject-2,English Language,ENG
+subject-3,Basic Science,BSC
+subject-4,Social Studies,SOS

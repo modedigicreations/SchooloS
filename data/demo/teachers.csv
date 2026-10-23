@@ -1,11 +1,11 @@
-id,name,subject_specialty
-1,Mrs. Adebayo Bello,English Language
-2,Mr. Ibrahim Eze,Mathematics
-3,Mrs. Amina Okafor,Mathematics
-4,Mr. Usman Ibekwe,Mathematics
-5,Mrs. Ikechukwu Nwankwo,English Language
-6,Mr. Maryam Bello,Mathematics
-7,Mrs. Musa Chukwu,Basic Science
-8,Mr. Chukwuemeka Chukwu,Mathematics
-9,Mrs. Femi Eze,Basic Science
-10,Mr. Simisola Bello,Mathematics
+id,name,employee_number,status
+teacher-1,Mrs. Adebayo Bello,EMP-001,active
+teacher-2,Mr. Usman Balogun,EMP-002,active
+teacher-3,Mrs. Ikechukwu Mohammed,EMP-003,active
+teacher-4,Mr. Amina Okafor,EMP-004,active
+teacher-5,Mrs. Chukwuemeka Okonkwo,EMP-005,active
+teacher-6,Mr. Ikechukwu Abdullahi,EMP-006,active
+teacher-7,Mrs. Zainab Danjuma,EMP-007,active
+teacher-8,Mr. Ngozi Nwosu,EMP-008,active
+teacher-9,Mrs. Hauwa Bello,EMP-009,active
+teacher-10,Mr. Chukwuemeka Chukwu,EMP-010,active

@@ -39,23 +39,16 @@ TOOLS: list[Tool] = [
         handler=lambda conn, **_: q.list_subjects(conn),
     ),
     Tool(
-        name="list_terms",
-        description="List every academic term on record, in chronological order.",
-        input_schema=_no_args_schema(),
-        handler=lambda conn, **_: q.list_terms(conn),
-    ),
-    Tool(
         name="get_underperforming_students",
         description=(
             "Find students whose average percent score is at or below a threshold. "
-            "Optionally scope to one class, one subject, and/or one term."
+            "Optionally scope to one class and/or one subject."
         ),
         input_schema={
             "type": "object",
             "properties": {
                 "class_name": {"type": "string", "description": "e.g. 'Primary 5'. Omit for all classes."},
                 "subject": {"type": "string", "description": "e.g. 'Mathematics'. Omit for all subjects."},
-                "term": {"type": "string", "description": "e.g. '2025/2026 Term 2'. Omit for all terms."},
                 "threshold_percent": {"type": "number", "description": "Default 50.0."},
             },
         },
@@ -64,39 +57,28 @@ TOOLS: list[Tool] = [
     Tool(
         name="compare_assessment_performance",
         description=(
-            "Compare a class's performance on its most recent assessments for one subject "
-            "(e.g. 'the last three assessments'), in chronological order."
+            "Compare a class's performance on its most recent exams for one subject "
+            "(e.g. 'the last three exams'), in chronological order."
         ),
         input_schema={
             "type": "object",
             "properties": {
                 "class_name": {"type": "string"},
                 "subject": {"type": "string"},
-                "last_n": {"type": "integer", "description": "How many recent assessments to compare. Default 3."},
+                "last_n": {"type": "integer", "description": "How many recent exams to compare. Default 3."},
             },
             "required": ["class_name", "subject"],
         },
         handler=lambda conn, **kw: q.compare_assessment_performance(conn, **kw),
     ),
     Tool(
-        name="compare_term_performance",
-        description="Compare a class's average percent score across terms for one subject, in term order.",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "class_name": {"type": "string"},
-                "subject": {"type": "string"},
-            },
-            "required": ["class_name", "subject"],
-        },
-        handler=lambda conn, **kw: q.compare_term_performance(conn, **kw),
-    ),
-    Tool(
         name="rank_teacher_improvement",
         description=(
-            "Rank teachers by how much their classes' average scores improved from the first "
-            "term on record to the most recent one, across every class and subject they teach, "
-            "most-improved first. Pass top_n (e.g. 3) to return only the top N instead of everyone."
+            "Rank teachers by how much their class's average scores improved from its "
+            "earliest graded exam on record to its most recent, most-improved first. "
+            "Pass top_n (e.g. 3) to return only the top N instead of everyone. A "
+            "'teacher' here is a class's single class teacher — there's no "
+            "per-subject teacher assignment in this data."
         ),
         input_schema={
             "type": "object",
@@ -110,13 +92,15 @@ TOOLS: list[Tool] = [
         name="get_attendance_summary",
         description=(
             "Get the overall attendance (present) rate and the list of students at or below a "
-            "chronic-absence threshold. Optionally scope to one class and/or term."
+            "chronic-absence threshold. Optionally scope to one class and/or a date range "
+            "(YYYY-MM-DD, inclusive)."
         ),
         input_schema={
             "type": "object",
             "properties": {
                 "class_name": {"type": "string"},
-                "term": {"type": "string"},
+                "from_date": {"type": "string", "description": "YYYY-MM-DD"},
+                "to_date": {"type": "string", "description": "YYYY-MM-DD"},
                 "chronic_threshold_percent": {"type": "number", "description": "Default 85.0."},
             },
         },
@@ -141,10 +125,11 @@ TOOLS: list[Tool] = [
         handler=lambda conn, **kw: q.intervention_candidates(conn, **kw),
     ),
     Tool(
-        name="get_term_report_data",
+        name="get_class_report_data",
         description=(
             "Get the aggregated facts (class average, per-subject breakdown, top/bottom students, "
-            "attendance) needed to draft an end-of-term report for one class and term. "
+            "attendance) needed to draft a report for one class. Covers every graded exam on record "
+            "by default; optionally scope to a date range (YYYY-MM-DD, inclusive). "
             "This tool returns data only — write the actual report narrative yourself from the "
             "returned facts."
         ),
@@ -152,11 +137,12 @@ TOOLS: list[Tool] = [
             "type": "object",
             "properties": {
                 "class_name": {"type": "string"},
-                "term": {"type": "string"},
+                "from_date": {"type": "string", "description": "YYYY-MM-DD"},
+                "to_date": {"type": "string", "description": "YYYY-MM-DD"},
             },
-            "required": ["class_name", "term"],
+            "required": ["class_name"],
         },
-        handler=lambda conn, **kw: q.term_report_data(conn, **kw),
+        handler=lambda conn, **kw: q.get_class_report_data(conn, **kw),
     ),
     Tool(
         name="find_student",
@@ -180,7 +166,7 @@ TOOLS: list[Tool] = [
         ),
         input_schema={
             "type": "object",
-            "properties": {"student_id": {"type": "integer"}},
+            "properties": {"student_id": {"type": "string"}},
             "required": ["student_id"],
         },
         handler=lambda conn, **kw: q.get_student_profile(conn, **kw),
@@ -189,14 +175,13 @@ TOOLS: list[Tool] = [
         name="compare_classes_on_subject",
         description=(
             "Compare every class's average percent score on one subject, strongest first "
-            "(e.g. 'which class is best at Mathematics school-wide'). Optionally scope to "
-            "one term; otherwise averages across all terms on record."
+            "(e.g. 'which class is best at Mathematics school-wide'), across all graded "
+            "exams on record."
         ),
         input_schema={
             "type": "object",
             "properties": {
                 "subject": {"type": "string"},
-                "term": {"type": "string"},
             },
             "required": ["subject"],
         },
