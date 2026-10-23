@@ -1,0 +1,15 @@
+[project]
+name = "schoolos"
+version = "0.1.0"
+description = "AI operating/integration layer for schools: ask natural-language questions, get answers computed from the school's own data."
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.2.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "anthropic>=0.40.0",
+    "pandas>=2.2.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["schoolos*"]
