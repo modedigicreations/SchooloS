@@ -128,7 +128,7 @@ def test_sync_organization_requires_secret():
         sync.sync_organization("org1", secret=None)
         raise AssertionError("expected SyncError")
     except sync.SyncError as exc:
-        assert "MODECBT_INTER_SERVICE_SECRET" in str(exc)
+        assert "SCHOOLOS_INTER_SERVICE_SECRET" in str(exc)
 
 
 if __name__ == "__main__":

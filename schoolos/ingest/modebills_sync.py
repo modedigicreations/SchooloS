@@ -8,8 +8,10 @@ Configuration (environment variables):
     MODEBILLS_ORGANIZATION_SLUG     the school's slug, e.g. as it appears in
                                      its own Modebills URL
                                      (app.modeschools.com/<slug>)
-    MODECBT_INTER_SERVICE_SECRET    required — shared secret (see Modebills'
-                                     src/server/enterprise-auth.helpers.ts)
+    SCHOOLOS_INTER_SERVICE_SECRET   required — shared secret for the SchoolOS
+                                     integration specifically, independent of
+                                     Modebills' MODECBT_INTER_SERVICE_SECRET
+                                     (see its src/server/enterprise-auth.helpers.ts)
 
 This mirrors schoolos.ingest.load_csv in spirit (validate/report rather than
 crash on one bad row) but writes straight to the database instead of
@@ -182,9 +184,9 @@ def sync_organization(
     conn: sqlite3.Connection | None = None,
 ) -> SyncReport:
     base_url = base_url or os.environ.get("MODEBILLS_BASE_URL", DEFAULT_BASE_URL)
-    secret = secret or os.environ.get("MODECBT_INTER_SERVICE_SECRET")
+    secret = secret or os.environ.get("SCHOOLOS_INTER_SERVICE_SECRET")
     if not secret:
-        raise SyncError("MODECBT_INTER_SERVICE_SECRET is not set")
+        raise SyncError("SCHOOLOS_INTER_SERVICE_SECRET is not set")
 
     raw = fetch_all(base_url, secret, organization_id, organization_slug, from_date, to_date)
     exam_rows, exam_result_rows = transform_exam_results(raw["exam_results"])

@@ -84,7 +84,7 @@ nothing to export — `modebills_sync` pulls directly from its
 `/api/enterprise/schoolos/*` endpoints:
 
 ```bash
-export MODECBT_INTER_SERVICE_SECRET=...   # shared secret, matches Modebills' own env
+export SCHOOLOS_INTER_SERVICE_SECRET=...  # SchoolOS's own secret — independent of Modebills' ModeCBT integration
 export MODEBILLS_ORGANIZATION_SLUG=...    # e.g. the-word-of-promise-high-school
 # (or MODEBILLS_ORGANIZATION_ID=... if you have the raw uuid instead)
 python -m schoolos.ingest.modebills_sync

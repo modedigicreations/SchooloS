@@ -34,12 +34,14 @@ was reworked (dropping `terms`, renaming `assessments`/`results` to
   plain upsert, no id-translation table needed).
 
 The new `/api/enterprise/schoolos/*` endpoints (added in that repo,
-[PR #65](https://github.com/modedigicreations/Modebills-/pull/65)) are
-read-only and shared-secret authenticated (`MODECBT_INTER_SERVICE_SECRET`,
-same pattern as the existing `verify-student`/`sso` routes) — one secret is
-trusted for any school's `organizationId`, matching that pattern's existing
-blast radius. A tighter per-school API key is a possible future hardening,
-not yet built.
+[PR #65](https://github.com/modedigicreations/Modebills-/pull/65), plus a
+follow-up) are read-only and shared-secret authenticated — but via their own
+`SCHOOLOS_INTER_SERVICE_SECRET`, not Modebills' `MODECBT_INTER_SERVICE_SECRET`
+(that one authenticates ModeCBT, a different product entirely — external
+examinations, no relationship to SchoolOS). One secret is trusted for any
+school's `organizationId`/`organizationSlug`, same blast radius as the
+existing `verify-student`/`sso` pattern it's modeled on. A tighter per-school
+API key is a possible future hardening, not yet built.
 
 **Not yet verified against live data** — `modebills_sync.py`'s transform
 and load logic is tested against mock JSON shaped exactly like the real
