@@ -105,7 +105,9 @@ def generate(out_dir: Path) -> None:
         class_student_ids = []
         for _ in range(STUDENTS_PER_CLASS):
             name, gender = make_name(rng)
-            students.append({"id": student_id, "name": name, "class_id": c["id"], "gender": gender})
+            admission_number = f"DEM/2025/{student_id:04d}"
+            students.append({"id": student_id, "name": name, "class_id": c["id"], "gender": gender,
+                              "admission_number": admission_number})
             class_student_ids.append(student_id)
             student_id += 1
 
@@ -192,7 +194,7 @@ def generate(out_dir: Path) -> None:
     _write_csv(out_dir / "subjects.csv", subjects, ["id", "name"])
     _write_csv(out_dir / "class_subject_teacher.csv", class_subject_teacher,
                ["class_id", "subject_id", "teacher_id"])
-    _write_csv(out_dir / "students.csv", students, ["id", "name", "class_id", "gender"])
+    _write_csv(out_dir / "students.csv", students, ["id", "name", "class_id", "gender", "admission_number"])
     _write_csv(out_dir / "terms.csv", terms, ["id", "name", "sequence"])
     _write_csv(out_dir / "assessments.csv", assessments,
                ["id", "class_id", "subject_id", "term_id", "name", "sequence", "max_score"])

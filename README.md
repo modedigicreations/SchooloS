@@ -56,7 +56,20 @@ python -m schoolos.ingest.load_csv data/demo  # loads into data/schoolos.db
 
 To load a real school's own exports instead, point `load_csv` at a directory
 with the same CSV shape (see the files under `data/demo/` for the exact
-columns each table expects).
+columns each table expects). The loader validates and coerces every row
+rather than aborting the whole import on the first bad cell — it loads what
+it can and returns a report of which rows it skipped and why (bad number,
+missing reference, etc.), so a human can go fix the source file. Students
+carry an `admission_number` as a durable identifier, since names alone
+aren't a safe match key across a real school's own messy, duplicate-prone
+records.
+
+Real exports will very likely NOT already be in this normalized shape —
+most schools keep one row per student with one column per subject/term
+("wide" format), not our normalized "long" tables. Turning a specific
+school's actual export into these CSVs (a per-school adapter) is the next
+real step once we have a sample export to design against — see the
+project's internal notes for what that needs.
 
 ## Running it
 

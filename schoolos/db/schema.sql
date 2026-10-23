@@ -28,7 +28,11 @@ CREATE TABLE IF NOT EXISTS students (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
     class_id INTEGER NOT NULL REFERENCES classes(id),
-    gender TEXT
+    gender TEXT,
+    -- A school's own admission/registration number. Names alone aren't a safe
+    -- join key for real data (duplicates, spelling drift across terms); this is
+    -- the durable identifier a real ingest should match students on instead.
+    admission_number TEXT UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS terms (
