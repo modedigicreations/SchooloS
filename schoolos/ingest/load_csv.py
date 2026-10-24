@@ -1,8 +1,11 @@
 """Load a directory of normalized CSV exports into the SchoolOS SQLite database.
 
 Expects the files produced by schoolos.data.generate_demo_data (or a school's
-own exports in the same shape): teachers.csv, classes.csv, subjects.csv,
-students.csv, exams.csv, exam_results.csv, attendance.csv.
+own exports in the same shape): organization.csv (one row — this school's id,
+name, slug), teachers.csv, classes.csv, subjects.csv, students.csv, exams.csv,
+exam_results.csv, attendance.csv. SchoolOS's database is multi-tenant (see
+schoolos/db/schema.sql), so every row in every file carries organization_id —
+load_dir can be called once per school, all into the same shared database.
 
 Real-world exports are messy (typos, blank cells, a stray "AB" where a score
 should be, a row referencing a class that doesn't exist). This loader does
@@ -25,23 +28,28 @@ from schoolos.db.connection import get_connection, init_db
 # column is typed so bad values (text in a score column, etc.) are caught
 # and reported per-row instead of corrupting the table or crashing the load.
 TABLES: list[tuple[str, str, dict[str, type]]] = [
-    ("teachers.csv", "teachers", {"id": str, "name": str, "employee_number": str, "status": str}),
-    ("classes.csv", "classes", {"id": str, "name": str, "class_teacher_id": str}),
-    ("subjects.csv", "subjects", {"id": str, "name": str, "code": str}),
+    ("organization.csv", "organizations", {"id": str, "name": str, "slug": str}),
+    ("teachers.csv", "teachers", {"id": str, "organization_id": str, "name": str, "employee_number": str, "status": str}),
+    ("classes.csv", "classes", {"id": str, "organization_id": str, "name": str, "class_teacher_id": str}),
+    ("subjects.csv", "subjects", {"id": str, "organization_id": str, "name": str, "code": str}),
     ("students.csv", "students",
-        {"id": str, "name": str, "class_id": str, "gender": str, "status": str, "admission_number": str}),
+        {"id": str, "organization_id": str, "name": str, "class_id": str, "gender": str, "status": str,
+         "admission_number": str}),
     ("exams.csv", "exams",
-        {"id": str, "class_id": str, "subject_id": str, "title": str, "exam_date": str,
+        {"id": str, "organization_id": str, "class_id": str, "subject_id": str, "title": str, "exam_date": str,
          "total_marks": float, "status": str}),
     ("exam_results.csv", "exam_results",
-        {"exam_id": str, "student_id": str, "score": float, "attempt_status": str}),
-    ("attendance.csv", "attendance", {"student_id": str, "class_id": str, "date": str, "status": str}),
+        {"exam_id": str, "student_id": str, "organization_id": str, "score": float, "attempt_status": str}),
+    ("attendance.csv", "attendance",
+        {"student_id": str, "organization_id": str, "class_id": str, "date": str, "status": str}),
 ]
 
 # (table, column) pairs allowed to be blank (ingest as NULL rather than a
 # coercion failure). Scoped per-table since e.g. "status" is required on
-# attendance (it has a CHECK constraint) but optional elsewhere.
+# attendance (it has a CHECK constraint) but optional elsewhere. organization_id
+# is deliberately never nullable anywhere — every row must belong to a school.
 NULLABLE_COLUMNS: set[tuple[str, str]] = {
+    ("organizations", "slug"),
     ("students", "admission_number"),
     ("classes", "class_teacher_id"),
     ("teachers", "employee_number"),

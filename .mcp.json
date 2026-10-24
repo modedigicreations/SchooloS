@@ -2,7 +2,10 @@
   "mcpServers": {
     "schoolos": {
       "command": "/Users/modewebhostdailymedia/SchoolOS/.venv/bin/python",
-      "args": ["-m", "schoolos.mcp_server.server"]
+      "args": ["-m", "schoolos.mcp_server.server"],
+      "env": {
+        "SCHOOLOS_ORGANIZATION_SLUG": "greenfield-demo"
+      }
     }
   }
 }

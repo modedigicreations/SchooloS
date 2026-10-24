@@ -1,0 +1,5 @@
+id,organization_id,name,code
+greenfield-demo-subject-1,org-greenfield-demo,Mathematics,MTH
+greenfield-demo-subject-2,org-greenfield-demo,English Language,ENG
+greenfield-demo-subject-3,org-greenfield-demo,Basic Science,BSC
+greenfield-demo-subject-4,org-greenfield-demo,Social Studies,SOS

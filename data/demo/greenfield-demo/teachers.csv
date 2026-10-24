@@ -1,0 +1,11 @@
+id,organization_id,name,employee_number,status
+greenfield-demo-teacher-1,org-greenfield-demo,Mrs. Adebayo Bello,EMP-001,active
+greenfield-demo-teacher-2,org-greenfield-demo,Mr. Usman Balogun,EMP-002,active
+greenfield-demo-teacher-3,org-greenfield-demo,Mrs. Ikechukwu Mohammed,EMP-003,active
+greenfield-demo-teacher-4,org-greenfield-demo,Mr. Amina Okafor,EMP-004,active
+greenfield-demo-teacher-5,org-greenfield-demo,Mrs. Chukwuemeka Okonkwo,EMP-005,active
+greenfield-demo-teacher-6,org-greenfield-demo,Mr. Ikechukwu Abdullahi,EMP-006,active
+greenfield-demo-teacher-7,org-greenfield-demo,Mrs. Zainab Danjuma,EMP-007,active
+greenfield-demo-teacher-8,org-greenfield-demo,Mr. Ngozi Nwosu,EMP-008,active
+greenfield-demo-teacher-9,org-greenfield-demo,Mrs. Hauwa Bello,EMP-009,active
+greenfield-demo-teacher-10,org-greenfield-demo,Mr. Chukwuemeka Chukwu,EMP-010,active

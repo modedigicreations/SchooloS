@@ -1,0 +1,7 @@
+id,organization_id,name,class_teacher_id
+greenfield-demo-class-1,org-greenfield-demo,Primary 1,greenfield-demo-teacher-8
+greenfield-demo-class-2,org-greenfield-demo,Primary 2,greenfield-demo-teacher-10
+greenfield-demo-class-3,org-greenfield-demo,Primary 3,greenfield-demo-teacher-2
+greenfield-demo-class-4,org-greenfield-demo,Primary 4,greenfield-demo-teacher-9
+greenfield-demo-class-5,org-greenfield-demo,Primary 5,greenfield-demo-teacher-1
+greenfield-demo-class-6,org-greenfield-demo,Primary 6,greenfield-demo-teacher-3

@@ -47,7 +47,50 @@ API key is a possible future hardening, not yet built.
 and load logic is tested against mock JSON shaped exactly like the real
 endpoint responses (`tests/test_modebills_sync.py`), but nobody has run it
 against an actual deployed organization yet. First real test needs a test
-school's `organizationId` and the shared secret.
+school's `organizationId` and the shared secret. (A real attempt at this
+got blocked entirely on recovering access to inherited server
+infrastructure — not a code problem. See the session notes for that saga;
+the short version is: the live server is real and serving real schools, so
+don't touch it without knowing exactly what you're doing, and the
+multi-tenancy work below doesn't depend on resolving that at all.)
+
+A 7th endpoint, `/api/enterprise/schoolos/organization`, returns a school's
+own name/slug — added because the other 6 return rows scoped to an org but
+never the org's own display name, which SchoolOS needs now that its
+database holds more than one school at once (see below).
+
+## SchoolOS's own database is multi-tenant
+
+One shared SQLite database holds every synced/imported school's data, not
+one database per school. Every table carries `organization_id`, every query
+function in `schoolos/analytics/queries.py` takes it as an explicit
+argument and filters by it directly (not just via a join further up the
+chain — a forgotten join elsewhere can never leak one school's data into
+another's answer, because the table actually being read is itself scoped).
+`modebills_sync.py` can be run once per school, all into the same database;
+`load_csv.py` likewise, given a school's own `organization.csv` alongside
+its other files.
+
+Which school a conversation is scoped to is resolved once, server-side,
+never something the model chooses or sees as a tool argument:
+- The **MCP server** is scoped to one school per *process*, via
+  `SCHOOLOS_ORGANIZATION_SLUG` (or `_ID`) in its environment.
+- The **web chat** resolves it once per *conversation*, from `?school=<slug>`
+  in the URL — but that's just a URL parameter today, not an authenticated
+  login. Anyone who knows (or guesses) a school's slug can open its chat.
+  Real per-school access control is the next real gap before this is safe
+  to actually deploy — see the README roadmap.
+
+`tests/test_modebills_sync.py`'s `test_cross_tenant_isolation` is the
+isolation proof: two schools built with deliberately identical class,
+subject, and student names, synced into one database, then checked that
+every query scoped to one never surfaces the other's data (including a
+direct attempt to fetch one school's student by id while scoped to the
+other, which correctly raises `NotFoundError` rather than 404-ing
+politely-but-leakily). The local demo setup mirrors this live: two demo
+schools (`greenfield-demo`, `unity-demo`) are generated and loaded by
+default specifically so the isolation can be seen working in the actual
+running app, not just in a unit test.
 
 ## A non-Modebills school's own CSV export
 

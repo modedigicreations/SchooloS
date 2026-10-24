@@ -3,6 +3,13 @@
 Each entry pairs a JSON Schema (for the LLM / MCP client) with the analytics
 function it calls. Keeping this in one place means the MCP server and the
 direct-Anthropic-API web chat expose exactly the same capabilities.
+
+Deliberately no `organization_id` in any tool's input_schema: which school a
+conversation is about is never something the LLM gets to choose. call_tool
+takes organization_id as its own argument, set server-side from how the
+caller authenticated/connected (the web chat resolves it once per
+conversation from ?school=<slug>; the MCP server resolves it once from its
+own process config) — never from model-controlled input.
 """
 
 from dataclasses import dataclass
@@ -30,13 +37,13 @@ TOOLS: list[Tool] = [
         name="list_classes",
         description="List every class in the school (e.g. Primary 1 .. Primary 6).",
         input_schema=_no_args_schema(),
-        handler=lambda conn, **_: q.list_classes(conn),
+        handler=lambda conn, org_id, **_: q.list_classes(conn, org_id),
     ),
     Tool(
         name="list_subjects",
         description="List every subject taught in the school.",
         input_schema=_no_args_schema(),
-        handler=lambda conn, **_: q.list_subjects(conn),
+        handler=lambda conn, org_id, **_: q.list_subjects(conn, org_id),
     ),
     Tool(
         name="get_underperforming_students",
@@ -52,7 +59,7 @@ TOOLS: list[Tool] = [
                 "threshold_percent": {"type": "number", "description": "Default 50.0."},
             },
         },
-        handler=lambda conn, **kw: q.underperforming_students(conn, **kw),
+        handler=lambda conn, org_id, **kw: q.underperforming_students(conn, org_id, **kw),
     ),
     Tool(
         name="compare_assessment_performance",
@@ -69,7 +76,7 @@ TOOLS: list[Tool] = [
             },
             "required": ["class_name", "subject"],
         },
-        handler=lambda conn, **kw: q.compare_assessment_performance(conn, **kw),
+        handler=lambda conn, org_id, **kw: q.compare_assessment_performance(conn, org_id, **kw),
     ),
     Tool(
         name="rank_teacher_improvement",
@@ -86,7 +93,7 @@ TOOLS: list[Tool] = [
                 "top_n": {"type": "integer", "description": "Return only the top N most-improved teachers. Omit for all."},
             },
         },
-        handler=lambda conn, **kw: q.rank_teacher_improvement(conn, **kw),
+        handler=lambda conn, org_id, **kw: q.rank_teacher_improvement(conn, org_id, **kw),
     ),
     Tool(
         name="get_attendance_summary",
@@ -104,7 +111,7 @@ TOOLS: list[Tool] = [
                 "chronic_threshold_percent": {"type": "number", "description": "Default 85.0."},
             },
         },
-        handler=lambda conn, **kw: q.attendance_summary(conn, **kw),
+        handler=lambda conn, org_id, **kw: q.attendance_summary(conn, org_id, **kw),
     ),
     Tool(
         name="get_intervention_candidates",
@@ -122,7 +129,7 @@ TOOLS: list[Tool] = [
                 "bottom_percent": {"type": "number", "description": "Default 10.0."},
             },
         },
-        handler=lambda conn, **kw: q.intervention_candidates(conn, **kw),
+        handler=lambda conn, org_id, **kw: q.intervention_candidates(conn, org_id, **kw),
     ),
     Tool(
         name="get_class_report_data",
@@ -142,7 +149,7 @@ TOOLS: list[Tool] = [
             },
             "required": ["class_name"],
         },
-        handler=lambda conn, **kw: q.get_class_report_data(conn, **kw),
+        handler=lambda conn, org_id, **kw: q.get_class_report_data(conn, org_id, **kw),
     ),
     Tool(
         name="find_student",
@@ -156,7 +163,7 @@ TOOLS: list[Tool] = [
             "properties": {"name": {"type": "string"}},
             "required": ["name"],
         },
-        handler=lambda conn, **kw: q.find_student(conn, **kw),
+        handler=lambda conn, org_id, **kw: q.find_student(conn, org_id, **kw),
     ),
     Tool(
         name="get_student_profile",
@@ -169,7 +176,7 @@ TOOLS: list[Tool] = [
             "properties": {"student_id": {"type": "string"}},
             "required": ["student_id"],
         },
-        handler=lambda conn, **kw: q.get_student_profile(conn, **kw),
+        handler=lambda conn, org_id, **kw: q.get_student_profile(conn, org_id, **kw),
     ),
     Tool(
         name="compare_classes_on_subject",
@@ -185,15 +192,15 @@ TOOLS: list[Tool] = [
             },
             "required": ["subject"],
         },
-        handler=lambda conn, **kw: q.compare_classes_on_subject(conn, **kw),
+        handler=lambda conn, org_id, **kw: q.compare_classes_on_subject(conn, org_id, **kw),
     ),
 ]
 
 TOOLS_BY_NAME = {t.name: t for t in TOOLS}
 
 
-def call_tool(conn: sqlite3.Connection, name: str, arguments: dict) -> Any:
+def call_tool(conn: sqlite3.Connection, organization_id: str, name: str, arguments: dict) -> Any:
     tool = TOOLS_BY_NAME.get(name)
     if tool is None:
         raise KeyError(f"unknown tool: {name}")
-    return tool.handler(conn, **(arguments or {}))
+    return tool.handler(conn, organization_id, **(arguments or {}))

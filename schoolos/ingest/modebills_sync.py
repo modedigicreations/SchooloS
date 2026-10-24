@@ -1,6 +1,11 @@
 """Sync one school's data from Modebills (app.modeschools.com) into the local
 SchoolOS database, via the read-only /api/enterprise/schoolos/* endpoints.
 
+SchoolOS's database is multi-tenant — this can be run once per school, all
+syncing into the same shared database, and every row is tagged with that
+school's organization_id so one deployment can safely serve every school at
+once (see schoolos/db/schema.sql and schoolos/analytics/queries.py).
+
 Configuration (environment variables):
     MODEBILLS_BASE_URL              default: https://app.modeschools.com
     MODEBILLS_ORGANIZATION_ID       the school's organization id (uuid) — set
@@ -90,7 +95,7 @@ def fetch_all(
     organization_slug: str | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
-) -> dict[str, list[dict]]:
+) -> dict:
     """Fetch every endpoint's raw JSON for one organization, identified by its
     raw id or its human-readable slug (e.g. 'the-word-of-promise-high-school',
     as it appears in the school's own Modebills URL). Kept separate from
@@ -100,6 +105,7 @@ def fetch_all(
         raise SyncError("either organization_id or organization_slug is required")
     params = {"organizationId": organization_id} if organization_id else {"organizationSlug": organization_slug}
     return {
+        "organization": _fetch(base_url, secret, "/api/enterprise/schoolos/organization", params)["organization"],
         "classes": _fetch(base_url, secret, "/api/enterprise/schoolos/classes", params)["classes"],
         "subjects": _fetch(base_url, secret, "/api/enterprise/schoolos/subjects", params)["subjects"],
         "teachers": _fetch(base_url, secret, "/api/enterprise/schoolos/teachers", params)["teachers"],
@@ -113,23 +119,29 @@ def fetch_all(
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# Transform: Modebills' JSON shape -> SchoolOS's normalized row shape
+# Transform: Modebills' JSON shape -> SchoolOS's normalized row shape.
+# Every row is tagged with organization_id so the shared, multi-tenant
+# database can tell this school's data apart from every other's.
 # ─────────────────────────────────────────────────────────────────────────
 
-def transform_classes(raw: list[dict]) -> list[tuple]:
-    return [(c["id"], c["name"], c.get("classTeacherId")) for c in raw]
+def transform_organization(raw: dict) -> tuple:
+    return (raw["id"], raw["name"], raw.get("slug"))
 
 
-def transform_subjects(raw: list[dict]) -> list[tuple]:
-    return [(s["id"], s["name"], s.get("code")) for s in raw]
+def transform_classes(raw: list[dict], organization_id: str) -> list[tuple]:
+    return [(c["id"], organization_id, c["name"], c.get("classTeacherId")) for c in raw]
 
 
-def transform_teachers(raw: list[dict]) -> list[tuple]:
-    return [(t["id"], t["name"], t.get("employeeNumber"), t.get("status")) for t in raw]
+def transform_subjects(raw: list[dict], organization_id: str) -> list[tuple]:
+    return [(s["id"], organization_id, s["name"], s.get("code")) for s in raw]
 
 
-def transform_students(raw: list[dict]) -> list[tuple]:
-    return [(s["id"], s["name"], s["classId"], s.get("gender"), s.get("status"), s["admissionNumber"])
+def transform_teachers(raw: list[dict], organization_id: str) -> list[tuple]:
+    return [(t["id"], organization_id, t["name"], t.get("employeeNumber"), t.get("status")) for t in raw]
+
+
+def transform_students(raw: list[dict], organization_id: str) -> list[tuple]:
+    return [(s["id"], organization_id, s["name"], s["classId"], s.get("gender"), s.get("status"), s["admissionNumber"])
             for s in raw]
 
 
@@ -137,23 +149,23 @@ def _date_only(iso_timestamp: str) -> str:
     return iso_timestamp[:10]
 
 
-def transform_exam_results(raw: list[dict]) -> tuple[list[tuple], list[tuple]]:
+def transform_exam_results(raw: list[dict], organization_id: str) -> tuple[list[tuple], list[tuple]]:
     """Returns (exam_rows, exam_result_rows). An exam with zero attempts still
     produces an exam row (deduplicated by examId) but no exam_result row."""
     exams_by_id: dict[str, tuple] = {}
     results = []
     for row in raw:
         exams_by_id[row["examId"]] = (
-            row["examId"], row["classId"], row["subjectId"], row["examTitle"],
+            row["examId"], organization_id, row["classId"], row["subjectId"], row["examTitle"],
             _date_only(row["startTime"]), row["totalMarks"], row.get("examStatus"),
         )
         if row.get("studentId") is not None:
-            results.append((row["examId"], row["studentId"], row.get("score"), row.get("attemptStatus")))
+            results.append((row["examId"], row["studentId"], organization_id, row.get("score"), row.get("attemptStatus")))
     return list(exams_by_id.values()), results
 
 
-def transform_attendance(raw: list[dict]) -> list[tuple]:
-    return [(a["studentId"], a["classId"], _date_only(a["attendanceDate"]), a["status"]) for a in raw]
+def transform_attendance(raw: list[dict], organization_id: str) -> list[tuple]:
+    return [(a["studentId"], organization_id, a["classId"], _date_only(a["attendanceDate"]), a["status"]) for a in raw]
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -189,7 +201,8 @@ def sync_organization(
         raise SyncError("SCHOOLOS_INTER_SERVICE_SECRET is not set")
 
     raw = fetch_all(base_url, secret, organization_id, organization_slug, from_date, to_date)
-    exam_rows, exam_result_rows = transform_exam_results(raw["exam_results"])
+    org_id = raw["organization"]["id"]  # the real id, even if we were called with just a slug
+    exam_rows, exam_result_rows = transform_exam_results(raw["exam_results"], org_id)
 
     owns_conn = conn is None
     conn = conn or get_connection()
@@ -197,16 +210,21 @@ def sync_organization(
     report = SyncReport()
     try:
         # Parent tables before children, same FK order as the schema.
-        _upsert(conn, "teachers", ["id", "name", "employee_number", "status"], transform_teachers(raw["teachers"]), report)
-        _upsert(conn, "classes", ["id", "name", "class_teacher_id"], transform_classes(raw["classes"]), report)
-        _upsert(conn, "subjects", ["id", "name", "code"], transform_subjects(raw["subjects"]), report)
-        _upsert(conn, "students", ["id", "name", "class_id", "gender", "status", "admission_number"],
-                transform_students(raw["students"]), report)
-        _upsert(conn, "exams", ["id", "class_id", "subject_id", "title", "exam_date", "total_marks", "status"],
+        _upsert(conn, "organizations", ["id", "name", "slug"], [transform_organization(raw["organization"])], report)
+        _upsert(conn, "teachers", ["id", "organization_id", "name", "employee_number", "status"],
+                transform_teachers(raw["teachers"], org_id), report)
+        _upsert(conn, "classes", ["id", "organization_id", "name", "class_teacher_id"],
+                transform_classes(raw["classes"], org_id), report)
+        _upsert(conn, "subjects", ["id", "organization_id", "name", "code"],
+                transform_subjects(raw["subjects"], org_id), report)
+        _upsert(conn, "students", ["id", "organization_id", "name", "class_id", "gender", "status", "admission_number"],
+                transform_students(raw["students"], org_id), report)
+        _upsert(conn, "exams", ["id", "organization_id", "class_id", "subject_id", "title", "exam_date", "total_marks", "status"],
                 exam_rows, report)
-        _upsert(conn, "exam_results", ["exam_id", "student_id", "score", "attempt_status"], exam_result_rows, report)
-        _upsert(conn, "attendance", ["student_id", "class_id", "date", "status"],
-                transform_attendance(raw["attendance"]), report)
+        _upsert(conn, "exam_results", ["exam_id", "student_id", "organization_id", "score", "attempt_status"],
+                exam_result_rows, report)
+        _upsert(conn, "attendance", ["student_id", "organization_id", "class_id", "date", "status"],
+                transform_attendance(raw["attendance"], org_id), report)
         conn.commit()
     except Exception:
         conn.rollback()

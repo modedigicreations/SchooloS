@@ -2,10 +2,17 @@
 so it plugs straight into Claude Desktop / Claude Code (and any other MCP
 client) without a separate backend.
 
+This server process is scoped to exactly one school, set via
+SCHOOLOS_ORGANIZATION_SLUG (or SCHOOLOS_ORGANIZATION_ID) in its environment
+— never something the LLM passes as a tool argument. The underlying
+database can hold many schools (see schoolos/db/schema.sql), but this
+server only ever answers about the one it's configured for.
+
 Run directly, or point an MCP client config at:
     python -m schoolos.mcp_server.server
 """
 
+import os
 from typing import Any, Callable
 
 from mcp.server.mcpserver import MCPServer
@@ -25,13 +32,28 @@ mcp = MCPServer(
 )
 
 
+def _server_organization_id(conn) -> str:
+    org_id = os.environ.get("SCHOOLOS_ORGANIZATION_ID")
+    if org_id:
+        return org_id
+    slug = os.environ.get("SCHOOLOS_ORGANIZATION_SLUG")
+    if not slug:
+        raise ToolError(
+            "SCHOOLOS_ORGANIZATION_SLUG (or SCHOOLOS_ORGANIZATION_ID) is not set — "
+            "this server doesn't know which school to answer about"
+        )
+    return q.resolve_organization_id(conn, slug)
+
+
 def _query(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-    """Run a query function and turn an unmatched class/subject name into a
-    clean tool error the model can read and recover from (e.g. by calling
-    list_classes), instead of an opaque "Error executing tool" crash."""
+    """Run a query function, scoped to this server's configured school, and
+    turn an unmatched class/subject name into a clean tool error the model
+    can read and recover from (e.g. by calling list_classes), instead of an
+    opaque "Error executing tool" crash."""
     try:
         with connect() as conn:
-            return fn(conn, *args, **kwargs)
+            organization_id = _server_organization_id(conn)
+            return fn(conn, organization_id, *args, **kwargs)
     except q.NotFoundError as exc:
         raise ToolError(str(exc)) from exc
 

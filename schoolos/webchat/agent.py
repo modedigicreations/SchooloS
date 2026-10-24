@@ -36,10 +36,12 @@ ANTHROPIC_TOOLS = [
 ]
 
 
-def ask(history: list[dict], message: str) -> dict:
-    """Run one user turn through the tool-use loop.
+def ask(history: list[dict], message: str, organization_id: str) -> dict:
+    """Run one user turn through the tool-use loop, scoped to one school.
 
     `history` is prior turns as [{"role": "user"|"assistant", "text": str}, ...].
+    `organization_id` is resolved once per conversation by the caller (from
+    ?school=<slug>) — never something the model chooses or sees.
     Returns {"reply": str, "tool_calls": [{"name", "input", "result"}, ...]}.
     """
     client = anthropic.Anthropic()
@@ -68,7 +70,7 @@ def ask(history: list[dict], message: str) -> dict:
                 if block.type != "tool_use":
                     continue
                 try:
-                    result = call_tool(conn, block.name, block.input)
+                    result = call_tool(conn, organization_id, block.name, block.input)
                     result_text = json.dumps(result)
                     is_error = False
                 except Exception as exc:  # noqa: BLE001 - surface any failure to the model

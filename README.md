@@ -5,7 +5,9 @@ principal or administrator asks a natural-language question and gets an
 answer computed directly from the school's own data (students, assessment
 results, attendance, teachers) — never a guess.
 
-> **Status: MVP v0.** Runs against a synthetic demo school. See
+> **Status: MVP v0.** Multi-tenant — one shared database can serve every
+> registered school, each strictly isolated from the others. Runs against
+> two synthetic demo schools locally. See
 > [Roadmap](#roadmap--whats-deliberately-out-of-scope) for what's intentionally not built yet.
 
 ## How it works
@@ -33,6 +35,17 @@ Every number the assistant states comes from a direct SQL query in
 to decide which tool to call and to write the narrative (e.g. a report or an
 intervention plan) *from* the returned facts, never to invent a figure itself.
 
+**Multi-tenant by design:** every table carries `organization_id`, and every
+query function takes it as an explicit argument and filters by it directly —
+not just via a join further up the chain, so a forgotten join elsewhere can
+never leak one school's data into another's answer. Which school a
+conversation is about is resolved once per session (from `?school=<slug>`
+in the web chat, or from the MCP server's own process config) and is never
+something the model chooses or sees as a tool argument — see
+[`tests/test_modebills_sync.py`](tests/test_modebills_sync.py)'s
+`test_cross_tenant_isolation` for the isolation proof (two schools, deliberately
+identical class/subject names, synced into one database).
+
 ## Project layout
 
 ```
@@ -57,11 +70,13 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-Generate the synthetic demo dataset and load it into SQLite:
+Generate the synthetic demo datasets (two schools, so the demo also proves
+isolation) and load them both into the same shared SQLite database:
 
 ```bash
-python -m schoolos.data.generate_demo_data   # writes data/demo/*.csv
-python -m schoolos.ingest.load_csv data/demo  # loads into data/schoolos.db
+python -m schoolos.data.generate_demo_data             # writes data/demo/<slug>/*.csv for each demo school
+python -m schoolos.ingest.load_csv data/demo/greenfield-demo
+python -m schoolos.ingest.load_csv data/demo/unity-demo
 ```
 
 To load a non-Modebills school's own exports instead, point `load_csv` at a
@@ -103,8 +118,14 @@ class teacher — there's no per-subject teacher assignment.
 
 ### Option A — MCP server (Claude Desktop / Claude Code)
 
+The MCP server is scoped to exactly one school per process, set via
+`SCHOOLOS_ORGANIZATION_SLUG` (or `_ID`) in its environment — the database
+underneath can hold many schools, but one running server only ever answers
+about the one it's configured for.
+
 **Claude Code:** a project-scoped [`.mcp.json`](.mcp.json) is already checked in,
-pointing at this repo's `.venv`. Open a new Claude Code session in this
+pointing at this repo's `.venv` with `SCHOOLOS_ORGANIZATION_SLUG` set to the
+`greenfield-demo` demo school. Open a new Claude Code session in this
 project (or restart your current one) and approve the `schoolos` MCP server
 when prompted — no API key needed, it uses your existing Claude session.
 
@@ -116,7 +137,8 @@ same server to its config manually, e.g. in `claude_desktop_config.json`:
   "mcpServers": {
     "schoolos": {
       "command": "/absolute/path/to/SchoolOS/.venv/bin/python",
-      "args": ["-m", "schoolos.mcp_server.server"]
+      "args": ["-m", "schoolos.mcp_server.server"],
+      "env": { "SCHOOLOS_ORGANIZATION_SLUG": "greenfield-demo" }
     }
   }
 }
@@ -133,9 +155,13 @@ export ANTHROPIC_API_KEY=sk-ant-...
 uvicorn schoolos.webchat.app:app --reload
 ```
 
-Open http://127.0.0.1:8000 and ask questions in the browser. Each answer has a
-collapsible "Data used" section showing exactly which tool calls backed it —
-useful for a demo audience that wants to see the grounding, not just trust it.
+Open `http://127.0.0.1:8000/?school=greenfield-demo` (or `unity-demo`) — the
+`?school=` slug is required; without it the page refuses to let you ask
+anything, since there's no safe default school to fall back to. Each answer
+has a collapsible "Data used" section showing exactly which tool calls
+backed it — useful for a demo audience that wants to see the grounding, not
+just trust it. Try the same question against both demo schools to see the
+isolation directly: identical class names, genuinely different answers.
 
 ## Example questions
 
@@ -155,7 +181,14 @@ Kept out of this pass on purpose, to keep the MVP's scope controlled:
 - **Behaviour records module**
 - **MODE Quest integration** (gamified learning, longer-term "education intelligence platform" vision)
 - A per-school CSV adapter for non-Modebills schools with their own "wide"-format exports
-- Multi-school / multi-tenant support (SchoolOS is still single-tenant: one local
-  database synced from exactly one Modebills organization, or one CSV source),
-  auth & roles, production deployment
-- Scheduled/automatic Modebills sync (today it's a manual or cron-it-yourself command)
+- **Access control for the shared deployment.** The database and query layer are
+  fully multi-tenant (see above), but nothing yet stops anyone who knows a
+  school's slug from opening its web chat — `?school=<slug>` is just a URL
+  parameter today, not an authenticated login. Real per-school access control
+  (even something simple, like a per-school token in the link) is needed
+  before this is safe to actually deploy for real schools.
+- Persistent hosting (Render/Fly.io/Railway) with a real Postgres database
+  instead of a local SQLite file, and a scheduled sync job — today both the
+  sync and the servers are run manually/locally
+- Scheduled/automatic Modebills sync across every registered school (today
+  it's a manual, one-school-at-a-time command)

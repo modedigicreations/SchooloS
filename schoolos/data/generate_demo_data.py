@@ -1,10 +1,15 @@
-"""Generate a synthetic demo dataset for a fictional Nigerian primary school.
+"""Generate synthetic demo datasets for fictional Nigerian primary schools.
+
+SchoolOS's database is multi-tenant (one shared database, many schools) —
+this generates data for one school at a time, with every id prefixed by
+that school's slug so two schools' CSVs can be loaded into the same shared
+database without id collisions (a real platform's UUIDs are globally unique
+on their own; locally-generated demo ids need this prefix to match that).
 
 Shaped to match a real school platform's data (see
-docs/real-data-ingest-notes.md): string ids (as a real platform's own UUIDs
-would be, used directly rather than through an id-translation layer), no
-"term" concept (exams are standalone, ordered by date), and teachers linked
-only to a class as its single class teacher (no per-subject assignment).
+docs/real-data-ingest-notes.md): string ids, no "term" concept (exams are
+standalone, ordered by date), and teachers linked only to a class as its
+single class teacher (no per-subject assignment).
 
 Deliberately engineers a few signal patterns (an improving class, a
 declining class, a consistent bottom-10% of students, a handful of chronic
@@ -12,15 +17,16 @@ absentees) so that analytics queries over the data produce meaningful,
 demo-able answers instead of pure noise.
 
 Usage: python -m schoolos.data.generate_demo_data [output_dir]
+  Writes two demo schools to <output_dir>/<slug>/*.csv each, so the local
+  demo setup also proves cross-tenant isolation, not just a single school.
 """
 
 import csv
 import random
 import sys
+from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-
-SEED = 42
 
 CLASSES = ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6"]
 SUBJECTS = [("Mathematics", "MTH"), ("English Language", "ENG"), ("Basic Science", "BSC"), ("Social Studies", "SOS")]
@@ -47,6 +53,20 @@ LAST_NAMES = [
 ]
 
 
+@dataclass
+class SchoolSpec:
+    organization_id: str
+    name: str
+    slug: str
+    seed: int
+
+
+DEMO_SCHOOLS = [
+    SchoolSpec(organization_id="org-greenfield-demo", name="Greenfield Academy (Demo)", slug="greenfield-demo", seed=42),
+    SchoolSpec(organization_id="org-unity-demo", name="Unity High School (Demo)", slug="unity-demo", seed=99),
+]
+
+
 def make_name(rng: random.Random) -> tuple[str, str]:
     gender = rng.choice(["male", "female"])
     first = rng.choice(FIRST_NAMES_M if gender == "male" else FIRST_NAMES_F)
@@ -58,16 +78,18 @@ def clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
-def generate(out_dir: Path) -> None:
-    rng = random.Random(SEED)
+def generate(out_dir: Path, school: SchoolSpec) -> None:
+    rng = random.Random(school.seed)
     out_dir.mkdir(parents=True, exist_ok=True)
+    p = school.slug  # id prefix, so two schools' ids never collide in the shared DB
 
     # --- teachers -----------------------------------------------------
     teachers = []
     for i in range(1, 11):
         name, _ = make_name(rng)
         teachers.append({
-            "id": f"teacher-{i}",
+            "id": f"{p}-teacher-{i}",
+            "organization_id": school.organization_id,
             "name": f"Mrs. {name}" if i % 2 else f"Mr. {name}",
             "employee_number": f"EMP-{i:03d}",
             "status": "active",
@@ -90,10 +112,11 @@ def generate(out_dir: Path) -> None:
             class_teacher_id = declining_teacher_id
         else:
             class_teacher_id = form_teacher_cycle[i % len(form_teacher_cycle)]["id"]
-        classes.append({"id": f"class-{i}", "name": cname, "class_teacher_id": class_teacher_id})
+        classes.append({"id": f"{p}-class-{i}", "organization_id": school.organization_id,
+                         "name": cname, "class_teacher_id": class_teacher_id})
 
     # --- subjects ---------------------------------------------------------
-    subjects = [{"id": f"subject-{i}", "name": name, "code": code}
+    subjects = [{"id": f"{p}-subject-{i}", "organization_id": school.organization_id, "name": name, "code": code}
                 for i, (name, code) in enumerate(SUBJECTS, start=1)]
 
     # --- students -------------------------------------------------------------
@@ -104,10 +127,10 @@ def generate(out_dir: Path) -> None:
         class_student_ids = []
         for _ in range(STUDENTS_PER_CLASS):
             name, gender = make_name(rng)
-            sid = f"student-{student_seq:04d}"
+            sid = f"{p}-student-{student_seq:04d}"
             students.append({
-                "id": sid, "name": name, "class_id": c["id"], "gender": gender,
-                "status": "active", "admission_number": f"DEM/2025/{student_seq:04d}",
+                "id": sid, "organization_id": school.organization_id, "name": name, "class_id": c["id"],
+                "gender": gender, "status": "active", "admission_number": f"{student_seq:04d}",
             })
             class_student_ids.append(sid)
             student_seq += 1
@@ -140,11 +163,12 @@ def generate(out_dir: Path) -> None:
                     trend = 1.0 + rng.uniform(-0.03, 0.03)
 
                 for n in range(EXAMS_PER_ROUND):
-                    exam_id = f"exam-{exam_seq:04d}"
+                    exam_id = f"{p}-exam-{exam_seq:04d}"
                     exam_date = round_start + timedelta(days=n * 14)
                     total_marks = 100.0 if n == EXAMS_PER_ROUND - 1 else 20.0
                     exams.append({
-                        "id": exam_id, "class_id": c["id"], "subject_id": s["id"],
+                        "id": exam_id, "organization_id": school.organization_id,
+                        "class_id": c["id"], "subject_id": s["id"],
                         "title": f"{s['name']} Round {round_num} Test {n + 1}",
                         "exam_date": exam_date.isoformat(), "total_marks": total_marks,
                         "status": "completed",
@@ -155,7 +179,7 @@ def generate(out_dir: Path) -> None:
                         fraction = clamp(ability * trend + noise, 0.05, 1.0)
                         score = round(fraction * total_marks, 1)
                         exam_results.append({
-                            "exam_id": exam_id, "student_id": st["id"],
+                            "exam_id": exam_id, "student_id": st["id"], "organization_id": school.organization_id,
                             "score": score, "attempt_status": "graded",
                         })
                     exam_seq += 1
@@ -179,23 +203,28 @@ def generate(out_dir: Path) -> None:
                     else:
                         status = "present"
                     attendance.append({
-                        "student_id": st["id"], "class_id": st["class_id"],
-                        "date": current.isoformat(), "status": status,
+                        "student_id": st["id"], "organization_id": school.organization_id,
+                        "class_id": st["class_id"], "date": current.isoformat(), "status": status,
                     })
                 day_count += 1
             current += timedelta(days=1)
 
-    _write_csv(out_dir / "teachers.csv", teachers, ["id", "name", "employee_number", "status"])
-    _write_csv(out_dir / "classes.csv", classes, ["id", "name", "class_teacher_id"])
-    _write_csv(out_dir / "subjects.csv", subjects, ["id", "name", "code"])
+    _write_csv(out_dir / "organization.csv",
+               [{"id": school.organization_id, "name": school.name, "slug": school.slug}],
+               ["id", "name", "slug"])
+    _write_csv(out_dir / "teachers.csv", teachers, ["id", "organization_id", "name", "employee_number", "status"])
+    _write_csv(out_dir / "classes.csv", classes, ["id", "organization_id", "name", "class_teacher_id"])
+    _write_csv(out_dir / "subjects.csv", subjects, ["id", "organization_id", "name", "code"])
     _write_csv(out_dir / "students.csv", students,
-               ["id", "name", "class_id", "gender", "status", "admission_number"])
+               ["id", "organization_id", "name", "class_id", "gender", "status", "admission_number"])
     _write_csv(out_dir / "exams.csv", exams,
-               ["id", "class_id", "subject_id", "title", "exam_date", "total_marks", "status"])
-    _write_csv(out_dir / "exam_results.csv", exam_results, ["exam_id", "student_id", "score", "attempt_status"])
-    _write_csv(out_dir / "attendance.csv", attendance, ["student_id", "class_id", "date", "status"])
+               ["id", "organization_id", "class_id", "subject_id", "title", "exam_date", "total_marks", "status"])
+    _write_csv(out_dir / "exam_results.csv", exam_results,
+               ["exam_id", "student_id", "organization_id", "score", "attempt_status"])
+    _write_csv(out_dir / "attendance.csv", attendance,
+               ["student_id", "organization_id", "class_id", "date", "status"])
 
-    print(f"Wrote demo dataset to {out_dir} "
+    print(f"Wrote demo dataset for {school.name!r} ({school.slug}) to {out_dir} "
           f"({len(students)} students, {len(exam_results)} exam results, {len(attendance)} attendance records)")
 
 
@@ -207,5 +236,6 @@ def _write_csv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
 
 
 if __name__ == "__main__":
-    target = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent.parent / "data" / "demo"
-    generate(target)
+    base = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent.parent / "data" / "demo"
+    for school in DEMO_SCHOOLS:
+        generate(base / school.slug, school)
