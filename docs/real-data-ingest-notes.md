@@ -75,11 +75,15 @@ Which school a conversation is scoped to is resolved once, server-side,
 never something the model chooses or sees as a tool argument:
 - The **MCP server** is scoped to one school per *process*, via
   `SCHOOLOS_ORGANIZATION_SLUG` (or `_ID`) in its environment.
-- The **web chat** resolves it once per *conversation*, from `?school=<slug>`
-  in the URL — but that's just a URL parameter today, not an authenticated
-  login. Anyone who knows (or guesses) a school's slug can open its chat.
-  Real per-school access control is the next real gap before this is safe
-  to actually deploy — see the README roadmap.
+- The **web chat** resolves it once per *conversation*, from an SSO token
+  signed by Modebills' own `/api/enterprise/schoolos/sso` (see
+  `schoolos/webchat/sso.py`) — access comes from a staff member's real
+  Modebills login, not a guessable URL. `?school=<slug>` still works as a
+  local/demo-only fallback, but is refused outright once
+  `SCHOOLOS_SSO_SECRET` is configured on the deployment. This closed what
+  was originally a real data-leak gap (any `?school=<slug>` guess could
+  open any school's chat) — found and fixed in the same session that built
+  multi-tenancy, before any real deployment happened.
 
 `tests/test_modebills_sync.py`'s `test_cross_tenant_isolation` is the
 isolation proof: two schools built with deliberately identical class,

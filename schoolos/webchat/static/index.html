@@ -57,7 +57,9 @@ const input = document.getElementById('input');
 const submitBtn = form.querySelector('button[type="submit"]');
 const subtitleEl = document.getElementById('subtitle');
 let history = [];
-const school = new URLSearchParams(location.search).get('school');
+const params = new URLSearchParams(location.search);
+const token = params.get('token');
+const school = params.get('school'); // dev/demo fallback only — ignored once the server requires a token
 
 const EXAMPLES = [
   "Which students are performing below expectations?",
@@ -158,7 +160,7 @@ async function send(message) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, school, history: history.slice(0, -1) }),
+      body: JSON.stringify({ message, token, school, history: history.slice(0, -1) }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -185,19 +187,21 @@ form.addEventListener('submit', (e) => {
 });
 
 async function init() {
-  if (!school) {
-    subtitleEl.textContent = 'No school specified. Open this page as /?school=<your-school-slug>.';
+  if (!token && !school) {
+    subtitleEl.textContent = 'No session. Open SchoolOS from your Modebills staff portal.';
     return;
   }
   try {
-    const res = await fetch('/api/school?slug=' + encodeURIComponent(school));
+    const qs = token ? 'token=' + encodeURIComponent(token) : 'school=' + encodeURIComponent(school);
+    const res = await fetch('/api/session?' + qs);
     const data = await res.json();
     if (!res.ok) {
-      subtitleEl.textContent = data.error || `No school found for "${school}".`;
+      subtitleEl.textContent = data.error || 'Could not start a session.';
       return;
     }
-    document.title = 'SchoolOS — ' + data.name;
-    subtitleEl.textContent = `For ${data.name}. Ask about students, assessments, attendance, or teachers — answers are computed from this school's own data, not guessed.`;
+    document.title = 'SchoolOS — ' + data.organization_name;
+    const who = data.user_name ? ` Signed in as ${data.user_name}.` : '';
+    subtitleEl.textContent = `For ${data.organization_name}.${who} Ask about students, assessments, attendance, or teachers — answers are computed from this school's own data, not guessed.`;
     input.disabled = false;
     submitBtn.disabled = false;
     input.focus();

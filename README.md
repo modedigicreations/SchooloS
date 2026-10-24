@@ -39,12 +39,25 @@ intervention plan) *from* the returned facts, never to invent a figure itself.
 query function takes it as an explicit argument and filters by it directly —
 not just via a join further up the chain, so a forgotten join elsewhere can
 never leak one school's data into another's answer. Which school a
-conversation is about is resolved once per session (from `?school=<slug>`
-in the web chat, or from the MCP server's own process config) and is never
-something the model chooses or sees as a tool argument — see
-[`tests/test_modebills_sync.py`](tests/test_modebills_sync.py)'s
+conversation is about is resolved once per session — from the MCP server's
+own process config, or, in the web chat, from a Modebills SSO token (see
+below) — and is never something the model chooses or sees as a tool
+argument. See [`tests/test_modebills_sync.py`](tests/test_modebills_sync.py)'s
 `test_cross_tenant_isolation` for the isolation proof (two schools, deliberately
 identical class/subject names, synced into one database).
+
+**Access is by real login, not a guessable URL.** The web chat's actual
+access path is an SSO token signed by Modebills' `/api/enterprise/schoolos/sso`
+— a staff member (owner/admin/teacher) clicks "SchoolOS Analytics" from
+their own Modebills admin portal while already logged in, and lands in the
+chat already scoped to their school and signed in as themselves. See
+[`schoolos/webchat/sso.py`](schoolos/webchat/sso.py) for the token
+verification and [`tests/test_sso.py`](tests/test_sso.py) for the proof
+(including a Python reimplementation of the exact signing algorithm from
+Modebills' `src/server/jwt.helpers.ts`, so the test is real cross-language
+interop, not just self-agreement). `?school=<slug>` still works as a
+local/demo convenience — but only when `SCHOOLOS_SSO_SECRET` isn't
+configured; once it is, that path is refused outright.
 
 ## Project layout
 
@@ -155,13 +168,21 @@ export ANTHROPIC_API_KEY=sk-ant-...
 uvicorn schoolos.webchat.app:app --reload
 ```
 
-Open `http://127.0.0.1:8000/?school=greenfield-demo` (or `unity-demo`) — the
-`?school=` slug is required; without it the page refuses to let you ask
-anything, since there's no safe default school to fall back to. Each answer
-has a collapsible "Data used" section showing exactly which tool calls
-backed it — useful for a demo audience that wants to see the grounding, not
-just trust it. Try the same question against both demo schools to see the
-isolation directly: identical class names, genuinely different answers.
+Without `SCHOOLOS_SSO_SECRET` set (local/demo), open
+`http://127.0.0.1:8000/?school=greenfield-demo` (or `unity-demo`) — a required
+dev-only slug; without it the page refuses to let you ask anything. Try the
+same question against both demo schools to see the isolation directly:
+identical class names, genuinely different answers.
+
+With `SCHOOLOS_SSO_SECRET` set (matching Modebills' own value — see
+`.env.example` there), that slug path is refused and the only way in is a
+token from Modebills' "SchoolOS Analytics" link in its admin portal —
+`?token=<jwt>`, scoped to whichever school and staff member actually clicked
+it.
+
+Each answer has a collapsible "Data used" section showing exactly which tool
+calls backed it — useful for a demo audience that wants to see the
+grounding, not just trust it.
 
 ## Example questions
 
@@ -181,12 +202,13 @@ Kept out of this pass on purpose, to keep the MVP's scope controlled:
 - **Behaviour records module**
 - **MODE Quest integration** (gamified learning, longer-term "education intelligence platform" vision)
 - A per-school CSV adapter for non-Modebills schools with their own "wide"-format exports
-- **Access control for the shared deployment.** The database and query layer are
-  fully multi-tenant (see above), but nothing yet stops anyone who knows a
-  school's slug from opening its web chat — `?school=<slug>` is just a URL
-  parameter today, not an authenticated login. Real per-school access control
-  (even something simple, like a per-school token in the link) is needed
-  before this is safe to actually deploy for real schools.
+- MCP server access is still per-process config (`SCHOOLOS_ORGANIZATION_SLUG`),
+  not SSO — fine for a developer's own Claude Code/Desktop, not yet something
+  a school's own staff would set up themselves.
+- The SSO token is long-lived (8h) with no revocation — fine for a first
+  pass, but there's no way to kill a session early (e.g. a staff member
+  leaving) short of rotating `SCHOOLOS_SSO_SECRET`, which invalidates every
+  session at once.
 - Persistent hosting (Render/Fly.io/Railway) with a real Postgres database
   instead of a local SQLite file, and a scheduled sync job — today both the
   sync and the servers are run manually/locally
