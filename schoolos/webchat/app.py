@@ -7,13 +7,24 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from schoolos.analytics import queries as q
-from schoolos.db.connection import connect
+from schoolos.db.connection import connect, init_db
 from schoolos.webchat.agent import ask
 from schoolos.webchat.sso import InvalidTokenError, sso_required, verify_sso_token
 
 app = FastAPI(title="SchoolOS")
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+
+@app.on_event("startup")
+def _ensure_schema() -> None:
+    """A fresh deployment's database file may not exist yet, or may exist
+    with no tables (nobody's run load_csv/modebills_sync against it yet).
+    Without this, the very first request crashes with a raw 500 ("no such
+    table: organizations") instead of the clean "no school with slug X"
+    NotFoundError the rest of the app is built to handle."""
+    with connect() as conn:
+        init_db(conn)
 
 
 class SessionError(Exception):
